@@ -167,7 +167,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/3f/0e/fa3b193432cfc60c93b42f3be03365f5f909d2b3ea410295cf36df739e31/widgetsnbextension-4.0.15-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/99/92/545eb2ca17fc0e05456728d7e4378bfee48d66433ae3b7e71948e46826fb/xarray-2026.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/19/d4/225027a913621a879b429a043674aa35220e6ce67785acad4f7bd0c4ff33/xarray_einstats-0.10.0-py3-none-any.whl
-      - pypi: ./src/example_project
+      - pypi: ./src/tb_macro
 packages:
 - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_2.conda
   sha256: a3967b937b9abf0f2a99f3173fa4630293979bd1644709d89580e7c62a544661
@@ -520,12 +520,6 @@ packages:
   - optax ; extra == 'tests'
   - pytest ; extra == 'tests'
   requires_python: '>=3.10'
-- pypi: ./src/example_project
-  name: example-project
-  version: '0.1'
-  sha256: 5b19266e2a0b9797daca2037e6828f08da4d93f7b5feac600c7eb38f18788eca
-  requires_python: '>=3.10'
-  editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/executing-2.2.1-pyhd8ed1ab_0.conda
   sha256: 210c8165a58fdbf16e626aac93cc4c14dbd551a01d1516be5ecad795d2422cad
   md5: ff9efb7f7469aed3c4a8106ffa29593c
@@ -2386,6 +2380,12 @@ packages:
   - bidict>=0.23.1
   - networkx
   requires_python: '>=3.10'
+- pypi: ./src/tb_macro
+  name: tb-macro
+  version: '0.1'
+  sha256: 3cf969cad9469820f6a534aa51667ec42eb73b5431599ca7f780a493d637c716
+  requires_python: '>=3.10'
+  editable: true
 - pypi: https://files.pythonhosted.org/packages/6a/9e/2064975477fdc887e47ad42157e214526dcad8f317a948dee17e1659a62f/terminado-0.18.1-py3-none-any.whl
   name: terminado
   version: 0.18.1

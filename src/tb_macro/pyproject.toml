@@ -1,8 +1,9 @@
 [project]
-name = "example_project"
+name = "tb_macro"
 version = "0.1"
 authors = [
-    {name = "David Shipman", email= "david.shipman@monash.edu"}
+    {name = "David Shipman", email= "david.shipman@monash.edu"},
+    {name = "James Trauer", email= "james.trauer@monash.edu"}
 ]
 requires-python = ">=3.10"
 dependencies = [
