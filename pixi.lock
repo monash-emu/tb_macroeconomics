@@ -152,7 +152,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/c1/d4/59e74daffcb57a07668852eeeb6035af9f32cbfd7a1d2511f17d2fe6a738/smmap-5.0.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/46/2c/1462b1d0a634697ae9e55b3cecdcb64788e8b7d63f54d923fcd0bb140aed/soupsieve-2.8.3-py3-none-any.whl
-      - pypi: git+https://github.com/monash-emu/summer3wip.git#910f9f10c2d2514a504ea93da4e6a9e624ab1a86
+      - pypi: git+https://github.com/monash-emu/summer3wip.git#d1573525bc4bb33c6875bed2f8f70d3abde33984
       - pypi: https://files.pythonhosted.org/packages/6a/9e/2064975477fdc887e47ad42157e214526dcad8f317a948dee17e1659a62f/terminado-0.18.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e6/34/ebdc18bae6aa14fbee1a08b63c015c72b64868ff7dae68808ab500c492e2/tinycss2-1.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl
@@ -2368,7 +2368,7 @@ packages:
   - pkg:pypi/stack-data?source=hash-mapping
   size: 26988
   timestamp: 1733569565672
-- pypi: git+https://github.com/monash-emu/summer3wip.git#910f9f10c2d2514a504ea93da4e6a9e624ab1a86
+- pypi: git+https://github.com/monash-emu/summer3wip.git#d1573525bc4bb33c6875bed2f8f70d3abde33984
   name: summer3
   version: 0.3a0
   requires_dist:
