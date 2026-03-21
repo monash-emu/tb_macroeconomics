@@ -5,7 +5,7 @@ ACTIVE_COMPS = ["active"]
 POST_DETECT_COMPS = ["treatment", "recovered"]
 
 # Compartments that can be reinfected
-REINFECT_COMPS = ["contained", "cleared", "recovered"]
+INFECT_COMPS = ["mtb_naive", "contained", "cleared", "recovered"]
 
 # Age-related
 AGE_STRATA = ["0", "5", "15"]
