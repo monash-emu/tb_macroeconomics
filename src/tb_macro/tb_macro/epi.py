@@ -1,9 +1,17 @@
 from typing import Optional
 import numpy as np
 import pandas as pd
-from summer3.epi import CategoryGroup, CategoryData, \
-    StratSpec, ManagedArray, mixing_matrix, TransitionFlow, \
-    CompartmentalEpiModel, CompartmentMap, Stratification
+from summer3.epi import (
+    CategoryGroup,
+    CategoryData,
+    StratSpec,
+    ManagedArray,
+    mixing_matrix,
+    TransitionFlow,
+    CompartmentalEpiModel,
+    CompartmentMap,
+    Stratification,
+)
 from summer3.graph import defer, CompartmentValues, Parameter
 from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
 
@@ -17,7 +25,13 @@ def get_base_model():
     clin_strat = Stratification("clinical", ["subclin", "clin"])
     humans.stratify(clin_strat, (disease_state, ["active"]))
     times = pd.Index(np.arange(1800.0, 2000.0, 1.0))
-    return CompartmentalEpiModel(humans, times), disease_state, age_strat, clin_strat, infect_strat
+    return (
+        CompartmentalEpiModel(humans, times),
+        disease_state,
+        age_strat,
+        clin_strat,
+        infect_strat,
+    )
 
 
 class InfectionProcess:
@@ -40,16 +54,23 @@ class InfectionProcess:
         self.infectious_compartments = infectious_compartments
         self._infectious_pop_cats = self.infector_cats.product(infectious_compartments)
 
-    def process(self, compartment_values: ManagedArray, contact_rate: float, freq_dens_exponent: float):
+    def process(
+        self,
+        compartment_values: ManagedArray,
+        contact_rate: float,
+        freq_dens_exponent: float,
+    ):
         ipops = compartment_values.sumcats(self._infectious_pop_cats)
         total_pop = compartment_values.sumcats(self.infector_cats)
-        age_foi = (self.mm.data @ (ipops.data / total_pop.data ** freq_dens_exponent)) * contact_rate
+        age_foi = (
+            self.mm.data @ (ipops.data / total_pop.data**freq_dens_exponent)
+        ) * contact_rate
         return CategoryData(self.infectee_cats, age_foi)
 
 
 def add_infection_flows(epi_model, disease_state, age_cats):
     """Add the infection-related flows to the epidemiological model.
-    This includes both first infections and reinfections, 
+    This includes both first infections and reinfections,
     with the same approach to calculation, but potentially different contact rates
     base on susceptibility.
 
@@ -63,11 +84,13 @@ def add_infection_flows(epi_model, disease_state, age_cats):
     freq_dens_exponent = Parameter("freq_dens_exponent", 1.0)
     for comp in INFECT_COMPS:
         reinfect_contact_rate = contact_rate * Parameter(f"rel_sus_{comp}", 1.0)
-        reinfect_foi = defer(InfectionProcess.process)(iprocess, CompartmentValues, reinfect_contact_rate, freq_dens_exponent)
+        reinfect_foi = defer(InfectionProcess.process)(
+            iprocess, CompartmentValues, reinfect_contact_rate, freq_dens_exponent
+        )
         reinfect = TransitionFlow(
-            f"infect_{comp}", 
-            disease_state[comp], 
-            disease_state["incipient"], 
+            f"infect_{comp}",
+            disease_state[comp],
+            disease_state["incipient"],
             reinfect_foi,
         )
         epi_model.add_flow(reinfect)
@@ -83,9 +106,9 @@ def add_transition_flows(epi_model, disease_state, clin_strat, infect_strat):
         infect_strat: The infectiousness stratification
     """
     contain = TransitionFlow(
-        "containment", 
-        disease_state["incipient"], 
-        disease_state["contained"], 
+        "containment",
+        disease_state["incipient"],
+        disease_state["contained"],
         Parameter("contain", 0.0),
     )
     clearance = TransitionFlow(
@@ -147,3 +170,27 @@ def add_transition_flows(epi_model, disease_state, clin_strat, infect_strat):
     epi_model.add_flow(clin_dev)
     epi_model.add_flow(clin_regress)
     epi_model.add_flow(self_recovery)
+
+
+def add_health_system_flows(epi_model, disease_state, clin_strat, infect_strat):
+    detect = TransitionFlow(
+        "passive_detection",
+        disease_state["active"],
+        disease_state["treatment"],
+        Parameter("detection", 0.0),
+    )
+    treat_recover = TransitionFlow(
+        "treatment_recovery",
+        disease_state["treatment"],
+        disease_state["recovered"],
+        Parameter("treatment_recovery", 0.0),
+    )
+    treat_relapse = TransitionFlow(
+        "treatment_relapse",
+        disease_state["treatment"],
+        (clin_strat["subclin"], infect_strat["low"]),
+        Parameter("treatment_relapse", 0.0),
+    )
+    epi_model.add_flow(detect)
+    epi_model.add_flow(treat_recover)
+    epi_model.add_flow(treat_relapse)
