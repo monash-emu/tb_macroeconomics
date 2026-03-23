@@ -1,9 +1,23 @@
 from typing import Optional
 import numpy as np
+import pandas as pd
 from summer3.epi import CategoryGroup, CategoryData, \
-    StratSpec, ManagedArray, mixing_matrix, TransitionFlow
+    StratSpec, ManagedArray, mixing_matrix, TransitionFlow, \
+    CompartmentalEpiModel, CompartmentMap, Stratification
 from summer3.graph import defer, CompartmentValues, Parameter
-from tb_macro.constants import INFECT_COMPS
+from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
+
+
+def get_base_model():
+    disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
+    humans = CompartmentMap.new(disease_state)
+    age_strat = humans.stratify(Stratification("age", AGE_STRATA))
+    infect_strat = Stratification("infectious", ["low", "high"])
+    humans.stratify(infect_strat, (disease_state, ["active"]))
+    clin_strat = Stratification("clinical", ["subclin", "clin"])
+    humans.stratify(clin_strat, (disease_state, ["active"]))
+    times = pd.Index(np.arange(1800.0, 2000.0, 1.0))
+    return CompartmentalEpiModel(humans, times), disease_state, age_strat, clin_strat, infect_strat
 
 
 class InfectionProcess:
