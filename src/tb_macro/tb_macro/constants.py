@@ -18,4 +18,4 @@ INFECT_COMPS = [
 ]
 
 # Age-related
-AGE_STRATA = ["0", "5", "15"]
+AGE_STRATA = [0, 5, 15]

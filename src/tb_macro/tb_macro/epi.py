@@ -19,7 +19,8 @@ from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
 def get_base_model():
     disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
     humans = CompartmentMap.new(disease_state)
-    age_strat = humans.stratify(Stratification("age", AGE_STRATA))
+    age_strings = [str(a) for a in AGE_STRATA]
+    age_strat = humans.stratify(Stratification("age", age_strings))
     infect_strat = Stratification("infectious", ["low", "high"])
     humans.stratify(infect_strat, (disease_state, ["active"]))
     clin_strat = Stratification("clinical", ["subclin", "clin"])
