@@ -57,3 +57,79 @@ def add_infection_flows(epi_model, disease_state, age_cats):
             reinfect_foi,
         )
         epi_model.add_flow(reinfect)
+
+
+def add_transition_flows(epi_model, disease_state, clin_strat, infect_strat):
+    """Add non-infection-related natural history flows to the epidemiological model.
+
+    Args:
+        epi_model: The epidemiological model
+        disease_state: The disease state compartments
+        clin_strat: The clinical stratification
+        infect_strat: The infectiousness stratification
+    """
+    contain = TransitionFlow(
+        "containment", 
+        disease_state["incipient"], 
+        disease_state["contained"], 
+        Parameter("contain", 0.0),
+    )
+    clearance = TransitionFlow(
+        "clearance",
+        disease_state["contained"],
+        disease_state["cleared"],
+        Parameter("clearance_rate", 0.0),
+    )
+    breakdown = TransitionFlow(
+        "breakdown",
+        disease_state["contained"],
+        disease_state["incipient"],
+        Parameter("breakdown_rate", 0.0),
+    )
+    progression = TransitionFlow(
+        "progression",
+        disease_state["incipient"],
+        clin_strat["subclin"],
+        Parameter("progression", 0.0),
+    )
+    increase_infect = TransitionFlow(
+        "increase_infectiousness",
+        infect_strat["low"],
+        infect_strat["high"],
+        Parameter("increase_infect", 0.0),
+    )
+    decrease_infect = TransitionFlow(
+        "decrease_infectiousness",
+        infect_strat["high"],
+        infect_strat["low"],
+        Parameter("decrease_infect", 0.0),
+    )
+    clin_dev = TransitionFlow(
+        "clinical_develop",
+        clin_strat["subclin"],
+        clin_strat["clin"],
+        Parameter("clinical_development", 0.0),
+    )
+    clin_regress = TransitionFlow(
+        "clinical_regress",
+        clin_strat["clin"],
+        clin_strat["subclin"],
+        Parameter("clinical_regression", 0.0),
+    )
+    self_recovery = TransitionFlow(
+        "self_recovery",
+        (disease_state["active"], clin_strat["subclin"]),
+        disease_state["recovered"],
+        Parameter("self_recovery", 0.0),
+    )
+
+    # Add flows to model
+    epi_model.add_flow(contain)
+    epi_model.add_flow(clearance)
+    epi_model.add_flow(breakdown)
+    epi_model.add_flow(progression)
+    epi_model.add_flow(increase_infect)
+    epi_model.add_flow(decrease_infect)
+    epi_model.add_flow(clin_dev)
+    epi_model.add_flow(clin_regress)
+    epi_model.add_flow(self_recovery)
