@@ -1,4 +1,5 @@
 from typing import Optional
+from collections import namedtuple
 import numpy as np
 import pandas as pd
 from summer3.epi import (
@@ -16,6 +17,12 @@ from summer3.graph import defer, CompartmentValues, Parameter
 from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
 
 
+ModelSpec = namedtuple(
+    "ModelSpec",
+    ["epi_model", "disease_state", "age_strat", "clin_strat", "infect_strat"],
+)
+
+
 def get_base_model():
     disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
     humans = CompartmentMap.new(disease_state)
@@ -26,7 +33,7 @@ def get_base_model():
     clin_strat = Stratification("clinical", ["subclin", "clin"])
     humans.stratify(clin_strat, (disease_state, ["active"]))
     times = pd.Index(np.arange(1800.0, 2000.0, 1.0))
-    return (
+    return ModelSpec(
         CompartmentalEpiModel(humans, times),
         disease_state,
         age_strat,
