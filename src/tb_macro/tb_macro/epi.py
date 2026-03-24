@@ -181,6 +181,14 @@ def add_transition_flows(epi_model, disease_state, clin_strat, infect_strat):
 
 
 def add_health_system_flows(epi_model, disease_state, clin_strat, infect_strat):
+    """Add the health system-related flows to the epidemiological model.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        clin_strat: The clinical stratification object
+        infect_strat: The infectiousness stratification object
+    """
     detect = TransitionFlow(
         "passive_detection",
         disease_state["active"],
@@ -202,3 +210,28 @@ def add_health_system_flows(epi_model, disease_state, clin_strat, infect_strat):
     epi_model.add_flow(detect)
     epi_model.add_flow(treat_recover)
     epi_model.add_flow(treat_relapse)
+
+
+def add_ageing_flows(epi_model, age_strat):
+    """Add ageing transition flows between age strata in the epidemiological model.
+    Creates and adds TransitionFlow objects to the model that represent
+    the progression of the population through sequential age groups.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        age_strat: The age stratification object
+    """
+    ageing_rates = []
+    for a in range(len(AGE_STRATA) - 1):
+        bottom = AGE_STRATA[a]
+        top = AGE_STRATA[a + 1]
+        progression = f"{bottom}_to_{top}"
+        ageing_rates.append(1.0 / (top - bottom))
+
+        ageing = TransitionFlow(
+            f"ageing_{progression}",
+            age_strat[str(bottom)],
+            age_strat[str(top)],
+            1.0 / (top - bottom),
+        )
+        epi_model.add_flow(ageing)
