@@ -88,7 +88,7 @@ def add_infection_flows(epi_model, disease_state, age_cats):
         age_cats: The age groups
     """
     iprocess = defer(InfectionProcess)(age_cats, age_cats, disease_state["active"])
-    contact_rate = Parameter("contact_rate", 0.2)
+    contact_rate = Parameter("contact_rate", 0.0)
     freq_dens_exponent = Parameter("freq_dens_exponent", 1.0)
     for comp in INFECT_COMPS:
         reinfect_contact_rate = contact_rate * Parameter(f"rel_sus_{comp}", 1.0)
