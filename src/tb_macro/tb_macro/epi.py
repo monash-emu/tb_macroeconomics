@@ -91,7 +91,7 @@ def add_infection_flows(epi_model, disease_state, age_cats):
     contact_rate = Parameter("contact_rate", 0.0)
     freq_dens_exponent = Parameter("freq_dens_exponent", 1.0)
     for comp in INFECT_COMPS:
-        reinfect_contact_rate = contact_rate * Parameter(f"rel_sus_{comp}", 1.0)
+        reinfect_contact_rate = contact_rate * Parameter(f"rel_sus_{comp}", 0.0)
         reinfect_foi = defer(InfectionProcess.process)(
             iprocess, CompartmentValues, reinfect_contact_rate, freq_dens_exponent
         )
