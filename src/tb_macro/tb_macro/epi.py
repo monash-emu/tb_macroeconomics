@@ -13,8 +13,9 @@ from summer3.epi import (
     CompartmentMap,
     Stratification,
 )
-from summer3.graph import defer, CompartmentValues, Parameter
+from summer3.graph import defer, CompartmentValues, Parameter, Time
 from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
+from tb_macro.utils import get_triang_vals
 
 
 ModelSpec = namedtuple(
@@ -235,3 +236,16 @@ def add_ageing_flows(epi_model, age_strat):
             1.0 / (top - bottom),
         )
         epi_model.add_flow(ageing)
+
+
+def add_seeding(epi_model, disease_state):
+    peak_time = Parameter("seed_peak_time", 0.0)
+    peak_height = Parameter("seed_peak_rate", 0.0)
+    width = Parameter("seed_duration", 0.0)
+    seed_flow = TransitionFlow(
+        "seed_peak",
+        disease_state["mtb_naive"],
+        disease_state["incipient"],
+        defer(get_triang_vals)(Time, peak_time, peak_height, width),
+    )
+    epi_model.add_flow(seed_flow)
