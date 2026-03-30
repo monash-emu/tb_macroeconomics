@@ -104,7 +104,7 @@ def add_infection_flows(epi_model, disease_state, age_cats):
         epi_model.add_flow(reinfect)
 
 
-def add_transition_flows(epi_model, disease_state, clin_strat, infect_strat):
+def add_natural_history(epi_model, disease_state, clin_strat, infect_strat):
     """Add non-infection-related natural history flows to the epidemiological model.
 
     Args:
