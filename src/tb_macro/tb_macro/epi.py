@@ -15,8 +15,7 @@ from summer3.epi import (
 )
 from summer3.graph import defer, CompartmentValues, Parameter, Time
 from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
-from tb_macro.utils import get_triang_vals
-
+from tb_macro.utils import get_triang_vals, tanh_based_scaleup
 
 ModelSpec = namedtuple(
     "ModelSpec",
@@ -249,3 +248,20 @@ def add_seeding(epi_model, disease_state):
         defer(get_triang_vals)(Time, peak_time, peak_height, width),
     )
     epi_model.add_flow(seed_flow)
+
+
+def add_detection(epi_model, disease_state, clin_strat):
+    tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(tanh_based_scaleup)(
+        Time, 
+        Parameter("passive_detection_shape", 0.0),
+        Parameter("passive_detection_inflection", 0.0), 
+        Parameter("passive_detection_past_frac", 0.0),
+        1.0,
+    )
+    detect = TransitionFlow(
+        "detection",
+        (disease_state["active"], clin_strat["clin"]),
+        disease_state["treatment"],
+        tv_detection_rate,
+    )
+    epi_model.add_flow(detect)
