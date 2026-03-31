@@ -23,7 +23,14 @@ ModelSpec = namedtuple(
 )
 
 
-def get_base_model():
+def get_base_model() -> ModelSpec:
+    """Build and return the base model along with the stratifications.
+
+    Returns:
+        The model, the compartmental states, the age states,
+            the clinical states of the active compartment and
+            the infectiousness states of the active compartment
+    """
     disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
     humans = CompartmentMap.new(disease_state)
     age_strings = [str(a) for a in AGE_STRATA]
@@ -76,7 +83,11 @@ class InfectionProcess:
         return CategoryData(self.infectee_cats, age_foi)
 
 
-def add_infection_flows(epi_model, disease_state, age_cats):
+def add_infection_flows(
+    epi_model: CompartmentalEpiModel, 
+    disease_state: Stratification, 
+    age_cats: Stratification,
+):
     """Add the infection-related flows to the epidemiological model.
     This includes both first infections and reinfections,
     with the same approach to calculation, but potentially different contact rates
@@ -104,7 +115,12 @@ def add_infection_flows(epi_model, disease_state, age_cats):
         epi_model.add_flow(reinfect)
 
 
-def add_natural_history(epi_model, disease_state, clin_strat, infect_strat):
+def add_natural_history(
+    epi_model: CompartmentalEpiModel, 
+    disease_state: Stratification, 
+    clin_strat: Stratification, 
+    infect_strat: Stratification,
+):
     """Add non-infection-related natural history flows to the epidemiological model.
 
     Args:
@@ -180,7 +196,12 @@ def add_natural_history(epi_model, disease_state, clin_strat, infect_strat):
     epi_model.add_flow(self_recovery)
 
 
-def add_health_system_flows(epi_model, disease_state, clin_strat, infect_strat):
+def add_health_system_flows(
+    epi_model: CompartmentalEpiModel, 
+    disease_state: Stratification, 
+    clin_strat: Stratification, 
+    infect_strat: Stratification,
+):
     """Add the health system-related flows to the epidemiological model.
 
     Args:
@@ -212,7 +233,10 @@ def add_health_system_flows(epi_model, disease_state, clin_strat, infect_strat):
     epi_model.add_flow(treat_relapse)
 
 
-def add_ageing_flows(epi_model, age_strat):
+def add_ageing_flows(
+    epi_model: CompartmentalEpiModel, 
+    age_strat: Stratification,
+):
     """Add ageing transition flows between age strata in the epidemiological model.
     Creates and adds TransitionFlow objects to the model that represent
     the progression of the population through sequential age groups.
@@ -237,7 +261,16 @@ def add_ageing_flows(epi_model, age_strat):
         epi_model.add_flow(ageing)
 
 
-def add_seeding(epi_model, disease_state):
+def add_seeding(
+    epi_model: CompartmentalEpiModel, 
+    disease_state: Stratification,
+):
+    """Add the seeding of infection into the model.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+    """
     peak_time = Parameter("seed_peak_time", 0.0)
     peak_height = Parameter("seed_peak_rate", 0.0)
     width = Parameter("seed_duration", 0.0)
@@ -250,7 +283,18 @@ def add_seeding(epi_model, disease_state):
     epi_model.add_flow(seed_flow)
 
 
-def add_detection(epi_model, disease_state, clin_strat):
+def add_detection(
+    epi_model: CompartmentalEpiModel, 
+    disease_state: Stratification, 
+    clin_strat: Stratification,
+):
+    """Add the process of disease detection to the model.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        clin_strat: The clinical stratification object
+    """
     tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(tanh_based_scaleup)(
         Time, 
         Parameter("passive_detection_shape", 0.0),
