@@ -1,3 +1,5 @@
+from pathlib import Path
+
 # Compartments for TB model
 ALL_COMPARTMENTS = [
     "mtb_naive",
@@ -19,3 +21,7 @@ INFECT_COMPS = [
 
 # Age-related
 AGE_STRATA = [0, 5, 15]
+
+# Paths
+BASE_PATH = Path(__file__).parent.parent.parent.parent
+DATA_PATH = BASE_PATH / "data"
