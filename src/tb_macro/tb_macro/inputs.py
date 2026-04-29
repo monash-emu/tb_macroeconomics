@@ -50,20 +50,30 @@ def get_single_age_pop_from_ungroups(
     return pd.DataFrame(single_rows)
 
 
-def get_bounds_from_agegroups(
-    lower_bounds: List[int],
+def get_group_popsizes(
+    single_age_pops: pd.DataFrame,
+    age_strata: List[int],
     max_age: int,
-) -> List[List[int]]:
-    """Get the upper and lower bounds for each
-    age group being considered in the model.
+) -> pd.DataFrame:
+    """Get dataframe for age group populations by year.
 
     Args:
-        groups: The lower bounds for the age groups
-        max_age: The upper limit for the oldest age group
+        single_age_pops: The single age population data from
+            get_single_age_pop_from_ungroups
+        age_strata: The age groups
+        max_age: The highest age to go to for the top age group
 
     Returns:
-        List with elements for each age group,
-            each being a list containing the upper and lower bounds
+        The dataframe with rows for years and columns for age groups
     """
-    upper_bounds = [a - 1 for a in lower_bounds[1:]] + [max_age]
-    return list(zip(lower_bounds, upper_bounds))
+    single_age_pops["Age Group"] = pd.cut(
+        single_age_pops["Age"],
+        bins=age_strata + [max_age],
+        labels=age_strata,
+        right=False,
+    )
+    return (
+        single_age_pops.groupby(["Time", "Age Group"], observed=True)["Pop"]
+        .sum()
+        .unstack("Age Group")
+    )
