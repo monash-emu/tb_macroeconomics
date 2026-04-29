@@ -21,6 +21,7 @@ INFECT_COMPS = [
 
 # Age-related
 AGE_STRATA = [0, 5, 15]
+MAX_AGE = 120
 
 # Paths
 BASE_PATH = Path(__file__).parent.parent.parent.parent

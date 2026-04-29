@@ -1,6 +1,7 @@
-from tb_macro.constants import DATA_PATH
-
+from typing import List
 import pandas as pd
+
+from tb_macro.constants import DATA_PATH
 
 
 def get_country_pop(
@@ -47,3 +48,22 @@ def get_single_age_pop_from_ungroups(
             single_rows.append({"Time": r["Time"], "Age": age, "Pop": pop / n_ages})
 
     return pd.DataFrame(single_rows)
+
+
+def get_bounds_from_agegroups(
+    lower_bounds: List[int],
+    max_age: int,
+) -> List[List[int]]:
+    """Get the upper and lower bounds for each
+    age group being considered in the model.
+
+    Args:
+        groups: The lower bounds for the age groups
+        max_age: The upper limit for the oldest age group
+
+    Returns:
+        List with elements for each age group,
+            each being a list containing the upper and lower bounds
+    """
+    upper_bounds = [a - 1 for a in lower_bounds[1:]] + [max_age]
+    return list(zip(lower_bounds, upper_bounds))
