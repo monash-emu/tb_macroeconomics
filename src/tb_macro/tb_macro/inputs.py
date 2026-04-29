@@ -19,9 +19,9 @@ def get_country_pop(
 
 
 def get_single_age_pop_from_ungroups(
-    data,
-    max_age,
-):
+    data: pd.DataFrame,
+    max_age: int,
+) -> pd.DataFrame:
     """Get population data in single year rows
     using UN data from get_country_pop.
 
