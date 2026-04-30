@@ -1,5 +1,5 @@
-from typing import List
 import pandas as pd
+import re
 
 from tb_macro.constants import DATA_PATH, AGE_STRATA, MAX_AGE
 
@@ -102,3 +102,64 @@ def get_un_mortality(
     )
     mort_data = mort_data.groupby(["Time", "Age Group"], as_index=False).sum()
     return mort_data.pivot(index="Time", columns="Age Group", values="DeathTotal")
+
+
+def lower_conmat(
+    age_group: str,
+) -> int:
+    """Get the lower value of the conmat age band.
+
+    Args:
+        age_group: The age group string
+
+    Returns:
+        The value
+    """
+    pattern = r"\[(\d+),"
+    return int(re.search(pattern, age_group).group(1))
+
+
+def load_conmat(
+    iso3: str,
+) -> pd.DataFrame:
+    """Load the conmat data produced by the R script
+    and check that age bands match with the modelled ones.
+
+    Args:
+        iso3: The country identifier
+
+    Returns:
+        Raw conmat data
+    """
+    conmat_data = pd.read_csv(DATA_PATH / f"mixing/conmat_all_{iso3}.csv", index_col=0)
+    conmat_agebreaks = [lower_conmat(a) for a in conmat_data["age_group_from"].unique()]
+    assert set(AGE_STRATA) == set(
+        conmat_agebreaks
+    ), "model age bands do not match conmat"
+    return conmat_data
+
+
+def convert_conmat(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    """Convert the raw conmat format to a square dataframe.
+
+    Args:
+        data: Output of load_conmat
+
+    Returns:
+        The conmat data as a square matrix
+    """
+    conmat = data.assign(
+        age_from=data["age_group_from"].map(lower_conmat),
+        age_to=data["age_group_to"].map(lower_conmat),
+    )
+    return conmat.pivot(
+        index="age_from",
+        columns="age_to",
+        values="contacts",
+    ).reindex(index=AGE_STRATA, columns=AGE_STRATA)
+
+
+conmat_data = load_conmat("KIR")
+conmat_matrix = convert_conmat(conmat_data)
