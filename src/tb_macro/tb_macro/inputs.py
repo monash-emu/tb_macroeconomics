@@ -183,3 +183,25 @@ def normalise_spectral_radius(
     eigvals = np.linalg.eigvals(matrix)
     spectral_radius = np.max(np.abs(eigvals))
     return matrix / spectral_radius
+
+
+def build_age_weight_lookup(
+    single_age: pd.DataFrame,
+) -> pd.DataFrame:
+    """Get within age-group weights for each
+    single year age of that group.
+
+    Args:
+        single_age: The population distribution by age and year
+
+    Returns:
+        The within-age group weights
+    """
+    wide_single_age = single_age.pivot(index="Time", columns="Age", values="Pop")
+    weights = pd.DataFrame(index=wide_single_age.index, columns=wide_single_age.columns)
+    for a, lower in enumerate(AGE_STRATA):
+        upper = MAX_AGE + 1 if lower == AGE_STRATA[-1] else AGE_STRATA[a + 1]
+        ages = [age for age in wide_single_age.columns if lower <= age < upper]
+        pop_sum = wide_single_age[ages].sum(axis=1).replace(0.0, 1.0)
+        weights[ages] = wide_single_age[ages].div(pop_sum, axis=0)
+    return weights
