@@ -90,7 +90,7 @@ def get_un_mortality(
     mort_data = pd.read_csv(DATA_PATH / "population/un_mortality.csv")
     relevant_cols = ["Time", "AgeGrp", "DeathTotal"]
     country_filt = mort_data["ISO3_code"] == iso3
-    time_filt = mort_data["Time"] > start_year
+    time_filt = mort_data["Time"] >= start_year
     mort_data = mort_data.loc[country_filt & time_filt, relevant_cols]
     mort_data["DeathTotal"] *= 1000.0  # convert from thousands
     mort_data["age"] = mort_data["AgeGrp"].str.replace("100+", "100").astype(int)
