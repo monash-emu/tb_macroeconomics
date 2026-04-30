@@ -1,5 +1,6 @@
-import pandas as pd
 import re
+import numpy as np
+import pandas as pd
 
 from tb_macro.constants import DATA_PATH, AGE_STRATA, MAX_AGE
 
@@ -163,3 +164,20 @@ def convert_conmat(
 
 conmat_data = load_conmat("KIR")
 conmat_matrix = convert_conmat(conmat_data)
+
+
+def normalise_spectral_radius(
+    matrix: pd.DataFrame,
+) -> pd.DataFrame:
+    """Normalise matrix by dividing by
+    its spectral radius.
+
+    Args:
+        matrix: The matrix to normalise
+
+    Returns:
+        The normalised matrix
+    """
+    eigvals = np.linalg.eigvals(matrix)
+    spectral_radius = np.max(np.abs(eigvals))
+    return matrix / spectral_radius
