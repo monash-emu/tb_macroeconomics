@@ -162,10 +162,6 @@ def convert_conmat(
     ).reindex(index=AGE_STRATA, columns=AGE_STRATA)
 
 
-conmat_data = load_conmat("KIR")
-conmat_matrix = convert_conmat(conmat_data)
-
-
 def normalise_spectral_radius(
     matrix: pd.DataFrame,
 ) -> pd.DataFrame:
