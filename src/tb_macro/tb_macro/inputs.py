@@ -49,6 +49,17 @@ def get_single_age_pop_from_ungroups(
     return pd.DataFrame(single_rows)
 
 
+def add_groups_to_single_pop(
+    single_age_pops: pd.DataFrame,
+) -> pd.DataFrame:
+    single_age_pops["Age Group"] = pd.cut(
+        single_age_pops["Age"],
+        bins=AGE_STRATA + [MAX_AGE],
+        labels=AGE_STRATA,
+        right=False,
+    )
+
+
 def get_group_popsizes(
     single_age_pops: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -61,12 +72,7 @@ def get_group_popsizes(
     Returns:
         The dataframe with rows for years and columns for age groups
     """
-    single_age_pops["Age Group"] = pd.cut(
-        single_age_pops["Age"],
-        bins=AGE_STRATA + [MAX_AGE],
-        labels=AGE_STRATA,
-        right=False,
-    )
+    add_groups_to_single_pop(single_age_pops)
     return (
         single_age_pops.groupby(["Time", "Age Group"], observed=True)["Pop"]
         .sum()
