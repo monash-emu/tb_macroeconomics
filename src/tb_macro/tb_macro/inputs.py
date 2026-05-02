@@ -204,4 +204,6 @@ def build_age_weight_lookup(
         ages = [age for age in wide_single_age.columns if lower <= age < upper]
         pop_sum = wide_single_age[ages].sum(axis=1).replace(0.0, 1.0)
         weights[ages] = wide_single_age[ages].div(pop_sum, axis=0)
+    assert (weights.index.diff()[1:] == 1).all()
+    assert (weights.columns.diff()[1:] == 1).all()
     return weights
