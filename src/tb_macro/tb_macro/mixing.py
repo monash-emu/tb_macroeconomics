@@ -16,12 +16,11 @@ def get_current_weights(
     Returns:
         A vector for the current weights by age
     """
-    weights_array = jnp.array(weights)
     start_year = weights.index[0]
     end_year = weights.index[-1]
-    clamped_time = jnp.clip(time, start_year, end_year)  # clamp to data range
-    year_idx = (clamped_time - start_year).astype(jnp.int32)  # convert to relative
-    return weights_array[year_idx, :]
+    clamped_time = jnp.clip(time, start_year, end_year)
+    year_idx = (clamped_time - start_year).astype(jnp.int32)
+    return jnp.array(weights)[year_idx, :]
 
 
 def get_assortative_component(
