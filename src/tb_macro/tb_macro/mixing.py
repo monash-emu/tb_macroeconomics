@@ -22,3 +22,26 @@ def get_current_weights(
     clamped_time = jnp.clip(time, start_year, end_year)  # clamp to data range
     year_idx = (clamped_time - start_year).astype(jnp.int32)  # convert to relative
     return weights_array[year_idx, :]
+
+
+def get_assortative_component(
+    ages_i: jnp.array,
+    ages_j: jnp.array,
+    a_spread: float,
+    weight_prod: jnp.array,
+) -> float:
+    """Population-weighted assortative mixing contribution
+    between two age bands.
+
+    Args:
+        ages_i: Contributing ages by row
+        ages_j: Contributing ages by column
+        a_spread: Decay parameter
+        weight_prod: Outer product of the weights
+
+    Returns:
+        Assortative mixing value
+    """
+    age_diff_mat = jnp.abs(ages_i[:, None] - ages_j[None, :])
+    assort_age_vals = (1.0 / a_spread) * jnp.exp(-age_diff_mat / a_spread)
+    return jnp.sum(weight_prod * assort_age_vals)
