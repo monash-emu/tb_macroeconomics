@@ -4,25 +4,25 @@ from jax import numpy as jnp
 from tb_macro.constants import AGE_STRATA, MAX_AGE
 
 
-def get_current_weights(
-    weights: pd.DataFrame,
+def get_year_index(
+    data: pd.DataFrame,
     time: float,
 ) -> jnp.array:
-    """Extract the age weights for the current time
-    from the full weights data.
+    """Get the relevant row from a dataframe
+    with consecutive index values representing years
+    given a time/year input.
 
     Args:
-        weights: The weights by age and time
-        time: Current time being simulated
+        data: The data that may or may not span time
+        time: Model time
 
     Returns:
-        A vector for the current weights by age
+        The relevant row of data
     """
-    start_year = weights.index[0]
-    end_year = weights.index[-1]
+    start_year = data.index[0]
+    end_year = data.index[-1]
     clamped_time = jnp.clip(time, start_year, end_year)
-    year_idx = (clamped_time - start_year).astype(jnp.int32)
-    return jnp.array(weights)[year_idx, :]
+    return (clamped_time - start_year).astype(jnp.int32)
 
 
 def get_assortative_component(
@@ -69,8 +69,9 @@ def build_s_matrix(
         The S matrix
     """
     n_groups = len(AGE_STRATA)
-    S = jnp.empty((n_groups, n_groups))
-    current_weights = get_current_weights(weights, time)
+    S = jnp.zeros((n_groups, n_groups))
+    year_idx = get_year_index(weights, time)
+    current_weights = jnp.array(weights)[year_idx, :]
 
     for i, lower_i in enumerate(AGE_STRATA):
         upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
@@ -90,27 +91,6 @@ def build_s_matrix(
             S = S.at[i, j].set(value)
             S = S.at[j, i].set(value)
     return S
-
-
-def get_pop(
-    pops: pd.DataFrame,
-    time: float,
-) -> jnp.array:
-    """Get current population sizes by modelled
-    age group.
-
-    Args:
-        pops: Age-group-specific populations for all years
-        time: Model time
-
-    Returns:
-        Current populations
-    """
-    start_year = pops.index[0]
-    end_year = pops.index[-1]
-    clamped_time = jnp.clip(time, start_year, end_year)
-    year_idx = (clamped_time - start_year).astype(jnp.int32)
-    return jnp.array(pops)[year_idx, :]
 
 
 def build_c_matrix(
@@ -135,6 +115,7 @@ def build_c_matrix(
     Returns:
         The C matrix
     """
-    pops = get_pop(pops, time)
+    year_idx = get_year_index(pops, time)
+    pops = jnp.array(pops)[year_idx, :]
     s_matrix = build_s_matrix(weights, time, bg_mixing, a_spread)
     return pops[None, :] * s_matrix
