@@ -8,7 +8,7 @@ def get_year_index(
     data: pd.DataFrame,
     time: float,
 ) -> jnp.array:
-    """Get the relevant row from a dataframe
+    """Get the relevant row index from a dataframe
     with consecutive index values representing years
     given a time/year input.
 
@@ -54,7 +54,7 @@ def build_s_matrix(
     bg_mixing: float,
     a_spread: float,
 ) -> jnp.array:
-    """Construct the symmetric S matrix, 
+    """Construct the symmetric s_matrix matrix, 
     i.e. the per capita, per capita
     matrix that could be used for a density-dependent
     transmission model.
@@ -66,10 +66,10 @@ def build_s_matrix(
         a_spread: Decay parameter for assortative mixing
 
     Returns:
-        The S matrix
+        The s_matrix matrix
     """
     n_groups = len(AGE_STRATA)
-    S = jnp.zeros((n_groups, n_groups))
+    s_matrix = jnp.zeros((n_groups, n_groups))
     year_idx = get_year_index(weights, time)
     current_weights = jnp.array(weights)[year_idx, :]
 
@@ -88,9 +88,9 @@ def build_s_matrix(
             assort_component = get_assortative_component(ages_i, ages_j, a_spread, weight_prod)
 
             value = bg_mixing + assort_component
-            S = S.at[i, j].set(value)
-            S = S.at[j, i].set(value)
-    return S
+            s_matrix = s_matrix.at[i, j].set(value)
+            s_matrix = s_matrix.at[j, i].set(value)
+    return s_matrix
 
 
 def build_c_matrix(
@@ -104,6 +104,8 @@ def build_c_matrix(
     or frequency-dependent transmission matrix
     from the per capita, per capita or 
     density-dependent transmission matrix.
+    Note that the [None, :] is not strictly necessary
+    but makes it clearer that this is row vector.
 
     Args:
         weights: Within age brackets weight by age group and year
@@ -117,5 +119,30 @@ def build_c_matrix(
     """
     year_idx = get_year_index(pops, time)
     pops = jnp.array(pops)[year_idx, :]
-    s_matrix = build_s_matrix(weights, time, bg_mixing, a_spread)
-    return pops[None, :] * s_matrix
+    return pops[None, :] * build_s_matrix(weights, time, bg_mixing, a_spread)
+
+
+def get_norm_c_matrix(
+    weights: pd.DataFrame,
+    pops: pd.DataFrame,
+    time: float,
+    bg_mixing: float,
+    a_spread: float,
+) -> jnp.array:
+    """Get the normalised version of the per capita
+    mixing matrix created by build_c_matrix.
+
+    Args:
+        weights: Within age brackets weight by age group and year
+        pops: Population sizes by age group
+        time: Model time
+        bg_mixing: Background mixing value
+        a_spread: Decay parameter for assortative mixing
+
+    Returns:
+        The normalised C matrix
+    """
+    c_matrix = build_c_matrix(weights, pops, time, bg_mixing, a_spread)
+    eigvals = jnp.linalg.eigvals(c_matrix)
+    spectral_radius = jnp.max(jnp.abs(eigvals))
+    return c_matrix / spectral_radius
