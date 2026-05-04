@@ -54,7 +54,8 @@ def build_s_matrix(
     bg_mixing: float,
     a_spread: float,
 ) -> jnp.array:
-    """Construct S matrix, i.e. the per capita, per capita
+    """Construct the symmetric S matrix, 
+    i.e. the per capita, per capita
     matrix that could be used for a density-dependent
     transmission model.
 
@@ -76,7 +77,7 @@ def build_s_matrix(
         ages_i = jnp.arange(lower_i, upper_i)
         weights_i = current_weights[lower_i: upper_i]
 
-        for j, lower_j in enumerate(AGE_STRATA):
+        for j, lower_j in enumerate(AGE_STRATA[:i + 1]): # compute for lower triangular and diagonal
             upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
             ages_j = jnp.arange(lower_j, upper_j)
             weights_j = current_weights[lower_j: upper_j]
