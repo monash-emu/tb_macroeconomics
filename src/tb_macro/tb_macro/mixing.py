@@ -48,12 +48,12 @@ def get_assortative_component(
     return jnp.sum(weight_prod * assort_age_vals)
 
 
-def get_child_parent_component(ages_i, ages_j, fert, time):
+def get_child_parent_component(ages_i, ages_j, fert, weight_prod, time):
     age_gap_mat = jnp.abs(ages_i[:, None] - ages_j[None, :])
     child_age_mat = jnp.minimum(ages_i[:, None], ages_j[None, :])
     child_birth_years = time - child_age_mat
     clamped_birth_years = get_year_index(fert, child_birth_years)
-    return jnp.array(fert)[clamped_birth_years, age_gap_mat]
+    return jnp.sum(weight_prod * jnp.array(fert)[clamped_birth_years, age_gap_mat])
 
 
 def build_s_matrix(
@@ -102,7 +102,7 @@ def build_s_matrix(
             )
 
             child_parent_component = get_child_parent_component(
-                ages_i, ages_j, fert, time
+                ages_i, ages_j, fert, weight_prod, time
             )
 
             value = bg_mixing + assort_component + child_parent_component
