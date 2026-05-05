@@ -5,7 +5,7 @@ from tb_macro.constants import AGE_STRATA, MAX_AGE
 
 
 def get_year_index(
-    data: pd.DataFrame,
+    ends: pd.DataFrame,
     time: float,
 ) -> jnp.array:
     """Get the relevant row index from a dataframe
@@ -19,10 +19,8 @@ def get_year_index(
     Returns:
         The relevant row of data
     """
-    start_year = data.index[0]
-    end_year = data.index[-1]
-    clamped_time = jnp.clip(time, start_year, end_year)
-    return (clamped_time - start_year).astype(jnp.int32)
+    clamped_time = jnp.clip(time, ends[0], ends[1])
+    return (clamped_time - ends[0]).astype(jnp.int32)
 
 
 def get_assortative_component(
@@ -48,17 +46,18 @@ def get_assortative_component(
     return jnp.sum(weight_prod * assort_age_vals)
 
 
-def get_child_parent_component(ages_i, ages_j, fert, weight_prod, time):
+def get_child_parent_component(ages_i, ages_j, fert, fert_ends, weight_prod, time):
     age_gap_mat = jnp.abs(ages_i[:, None] - ages_j[None, :])
     child_age_mat = jnp.minimum(ages_i[:, None], ages_j[None, :])
     child_birth_years = time - child_age_mat
-    clamped_birth_years = get_year_index(fert, child_birth_years)
+    clamped_birth_years = get_year_index(fert_ends, child_birth_years)
     return jnp.sum(weight_prod * jnp.array(fert)[clamped_birth_years, age_gap_mat])
 
 
 def build_s_matrix(
     weights: pd.DataFrame,
     fert: pd.DataFrame,
+    fert_ends: jnp.array,
     time: float,
     bg_mixing: float,
     a_spread: float,
@@ -80,7 +79,8 @@ def build_s_matrix(
     """
     n_groups = len(AGE_STRATA)
     s_matrix = jnp.zeros((n_groups, n_groups))
-    year_idx = get_year_index(weights, time)
+    weight_ends = weights.index[[0, -1]]
+    year_idx = get_year_index(weight_ends, time)
     current_weights = jnp.array(weights)[year_idx, :]
 
     for i, lower_i in enumerate(AGE_STRATA):
@@ -102,7 +102,7 @@ def build_s_matrix(
             )
 
             child_parent_component = get_child_parent_component(
-                ages_i, ages_j, fert, weight_prod, time
+                ages_i, ages_j, fert, fert_ends, weight_prod, time
             )
 
             value = bg_mixing + assort_component + child_parent_component
@@ -115,6 +115,7 @@ def build_c_matrix(
     weights: pd.DataFrame,
     pops: pd.DataFrame,
     fert: pd.DataFrame,
+    fert_ends: jnp.array,
     time: float,
     bg_mixing: float,
     a_spread: float,
@@ -137,15 +138,17 @@ def build_c_matrix(
     Returns:
         The C matrix
     """
-    year_idx = get_year_index(pops, time)
+    pop_ends = pops.index[[0, -1]]
+    year_idx = get_year_index(pop_ends, time)
     pops = jnp.array(pops)[year_idx, :]
-    return pops[None, :] * build_s_matrix(weights, fert, time, bg_mixing, a_spread)
+    return pops[None, :] * build_s_matrix(weights, fert, fert_ends, time, bg_mixing, a_spread)
 
 
 def get_norm_c_matrix(
     weights: pd.DataFrame,
     pops: pd.DataFrame,
     fert: pd.DataFrame,
+    fert_ends: jnp.array,
     time: float,
     bg_mixing: float,
     a_spread: float,
@@ -164,7 +167,7 @@ def get_norm_c_matrix(
     Returns:
         The normalised C matrix
     """
-    c_matrix = build_c_matrix(weights, pops, fert, time, bg_mixing, a_spread)
+    c_matrix = build_c_matrix(weights, pops, fert, fert_ends, time, bg_mixing, a_spread)
     eigvals = jnp.linalg.eigvals(c_matrix)
     spectral_radius = jnp.max(jnp.abs(eigvals))
     return c_matrix / spectral_radius
