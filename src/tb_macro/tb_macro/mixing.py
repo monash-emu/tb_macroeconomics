@@ -13,7 +13,7 @@ def get_year_index(
     given a time/year input.
 
     Args:
-        ends: The values representing the start and finish of the 
+        ends: The values representing the start and finish of the
             former dataframe's index
         time: Model time
 
@@ -130,7 +130,13 @@ def build_s_matrix(
             )
 
             child_parent_component = get_child_parent_component(
-                ages_i, ages_j, fert, fert_ends, weight_prod, time, pc_strength,
+                ages_i,
+                ages_j,
+                fert,
+                fert_ends,
+                weight_prod,
+                time,
+                pc_strength,
             )
 
             value = bg_mixing + assort_component + child_parent_component
@@ -175,7 +181,9 @@ def build_c_matrix(
     """
     year_idx = get_year_index(pop_ends, time)
     pops = pops[year_idx, :]
-    return pops[None, :] * build_s_matrix(weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength)
+    return pops[None, :] * build_s_matrix(
+        weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength
+    )
 
 
 def get_norm_c_matrix(
@@ -208,7 +216,18 @@ def get_norm_c_matrix(
     Returns:
         The normalised C matrix
     """
-    c_matrix = build_c_matrix(weights, weight_ends, pops, pop_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength)
+    c_matrix = build_c_matrix(
+        weights,
+        weight_ends,
+        pops,
+        pop_ends,
+        fert,
+        fert_ends,
+        time,
+        bg_mixing,
+        a_spread,
+        pc_strength,
+    )
     eigvals = jnp.linalg.eigvals(c_matrix)
     spectral_radius = jnp.max(jnp.abs(eigvals))
     return c_matrix / spectral_radius

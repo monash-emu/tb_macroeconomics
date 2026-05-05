@@ -2,7 +2,12 @@ from typing import Optional
 from collections import namedtuple
 import numpy as np
 import pandas as pd
-from summer3.epi import TransitionFlow, CompartmentalEpiModel, CompartmentMap, Stratification
+from summer3.epi import (
+    TransitionFlow,
+    CompartmentalEpiModel,
+    CompartmentMap,
+    Stratification,
+)
 from summer3.graph import defer, CompartmentValues, Parameter, Time
 from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
 from tb_macro.utils import get_triang_vals, tanh_based_scaleup
@@ -21,7 +26,7 @@ def get_base_model(
     Args:
         start_time: Run start time
         end_time: Run end time
-    
+
     Returns:
         The model, the compartmental states, the age states,
             the clinical states of the active compartment and
@@ -46,9 +51,9 @@ def get_base_model(
 
 
 def add_natural_history(
-    epi_model: CompartmentalEpiModel, 
-    disease_state: Stratification, 
-    clin_strat: Stratification, 
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    clin_strat: Stratification,
     infect_strat: Stratification,
 ):
     """Add non-infection-related natural history flows to the epidemiological model.
@@ -127,9 +132,9 @@ def add_natural_history(
 
 
 def add_health_system_flows(
-    epi_model: CompartmentalEpiModel, 
-    disease_state: Stratification, 
-    clin_strat: Stratification, 
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    clin_strat: Stratification,
     infect_strat: Stratification,
 ):
     """Add the health system-related flows to the epidemiological model.
@@ -140,12 +145,6 @@ def add_health_system_flows(
         clin_strat: The clinical stratification object
         infect_strat: The infectiousness stratification object
     """
-    detect = TransitionFlow(
-        "passive_detection",
-        disease_state["active"],
-        disease_state["treatment"],
-        Parameter("detection", 0.0),
-    )
     treat_recover = TransitionFlow(
         "treatment_recovery",
         disease_state["treatment"],
@@ -158,13 +157,12 @@ def add_health_system_flows(
         (clin_strat["subclin"], infect_strat["low"]),
         Parameter("treatment_relapse", 0.0),
     )
-    epi_model.add_flow(detect)
     epi_model.add_flow(treat_recover)
     epi_model.add_flow(treat_relapse)
 
 
 def add_ageing_flows(
-    epi_model: CompartmentalEpiModel, 
+    epi_model: CompartmentalEpiModel,
     age_strat: Stratification,
 ):
     """Add ageing transition flows between age strata in the epidemiological model.
@@ -192,7 +190,7 @@ def add_ageing_flows(
 
 
 def add_seeding(
-    epi_model: CompartmentalEpiModel, 
+    epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
 ):
     """Add the seeding of infection into the model.
@@ -214,8 +212,8 @@ def add_seeding(
 
 
 def add_detection(
-    epi_model: CompartmentalEpiModel, 
-    disease_state: Stratification, 
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
     clin_strat: Stratification,
 ):
     """Add the process of disease detection to the model.
@@ -225,10 +223,12 @@ def add_detection(
         disease_state: The compartmental stratification object
         clin_strat: The clinical stratification object
     """
-    tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(tanh_based_scaleup)(
-        Time, 
+    tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(
+        tanh_based_scaleup
+    )(
+        Time,
         Parameter("passive_detection_shape", 0.0),
-        Parameter("passive_detection_inflection", 0.0), 
+        Parameter("passive_detection_inflection", 0.0),
         Parameter("passive_detection_past_frac", 0.0),
         1.0,
     )
