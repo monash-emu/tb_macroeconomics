@@ -47,12 +47,35 @@ def get_assortative_component(
     return jnp.sum(weight_prod * assort_age_vals)
 
 
-def get_child_parent_component(ages_i, ages_j, fert, fert_ends, weight_prod, time):
+def get_child_parent_component(
+    ages_i: jnp.array,
+    ages_j: jnp.array,
+    fert: jnp.array,
+    fert_ends: jnp.array,
+    weight_prod: jnp.array,
+    time: float,
+    pc_strength: float,
+) -> float:
+    """Get the child-parent contribution to the mixing
+    matrix for a particular age group interaction.
+
+    Args:
+        ages_i: Contributing ages by row
+        ages_j: Contributing ages by column
+        fert: The fertility data (padded with zeroes)
+        fert_ends: The start and finish of the fertility index
+        weight_prod: Outer product of the weights
+        time: Model time
+        pc_strength: Scaling parameter for the strength of parent-child contacts
+
+    Returns:
+        The child-parent contribution
+    """
     age_gap_mat = jnp.abs(ages_i[:, None] - ages_j[None, :]).astype(jnp.int32)
     child_age_mat = jnp.minimum(ages_i[:, None], ages_j[None, :])
     child_birth_years = time - child_age_mat
     clamped_birth_years = get_year_index(fert_ends, child_birth_years)
-    return jnp.sum(weight_prod * fert[clamped_birth_years, age_gap_mat])
+    return pc_strength * jnp.sum(weight_prod * fert[clamped_birth_years, age_gap_mat])
 
 
 def build_s_matrix(
@@ -63,6 +86,7 @@ def build_s_matrix(
     time: float,
     bg_mixing: float,
     a_spread: float,
+    pc_strength: float,
 ) -> jnp.array:
     """Construct the symmetric s_matrix matrix,
     i.e. the per capita, per capita
@@ -77,6 +101,7 @@ def build_s_matrix(
         time: Model time
         bg_mixing: Background mixing value
         a_spread: Decay parameter for assortative mixing
+        pc_strength: Scaling parameter for the strength of parent-child contacts
 
     Returns:
         The s_matrix matrix
@@ -105,7 +130,7 @@ def build_s_matrix(
             )
 
             child_parent_component = get_child_parent_component(
-                ages_i, ages_j, fert, fert_ends, weight_prod, time
+                ages_i, ages_j, fert, fert_ends, weight_prod, time, pc_strength,
             )
 
             value = bg_mixing + assort_component + child_parent_component
@@ -124,6 +149,7 @@ def build_c_matrix(
     time: float,
     bg_mixing: float,
     a_spread: float,
+    pc_strength: float,
 ) -> jnp.array:
     """Get the C matrix, being the per capita
     or frequency-dependent transmission matrix
@@ -142,13 +168,14 @@ def build_c_matrix(
         time: Model time
         bg_mixing: Background mixing value
         a_spread: Decay parameter for assortative mixing
+        pc_strength: Scaling parameter for the strength of parent-child contacts
 
     Returns:
         The C matrix
     """
     year_idx = get_year_index(pop_ends, time)
     pops = pops[year_idx, :]
-    return pops[None, :] * build_s_matrix(weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread)
+    return pops[None, :] * build_s_matrix(weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength)
 
 
 def get_norm_c_matrix(
@@ -161,6 +188,7 @@ def get_norm_c_matrix(
     time: float,
     bg_mixing: float,
     a_spread: float,
+    pc_strength: float,
 ) -> jnp.array:
     """Get the normalised version of the per capita
     mixing matrix created by build_c_matrix.
@@ -175,11 +203,12 @@ def get_norm_c_matrix(
         time: Model time
         bg_mixing: Background mixing value
         a_spread: Decay parameter for assortative mixing
+        pc_strength: Scaling parameter for the strength of parent-child contacts
 
     Returns:
         The normalised C matrix
     """
-    c_matrix = build_c_matrix(weights, weight_ends, pops, pop_ends, fert, fert_ends, time, bg_mixing, a_spread)
+    c_matrix = build_c_matrix(weights, weight_ends, pops, pop_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength)
     eigvals = jnp.linalg.eigvals(c_matrix)
     spectral_radius = jnp.max(jnp.abs(eigvals))
     return c_matrix / spectral_radius
