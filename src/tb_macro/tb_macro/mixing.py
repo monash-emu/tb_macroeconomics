@@ -5,15 +5,16 @@ from tb_macro.constants import AGE_STRATA, MAX_AGE
 
 
 def get_year_index(
-    ends: pd.DataFrame,
+    ends: jnp.array,
     time: float,
 ) -> jnp.array:
-    """Get the relevant row index from a dataframe
+    """Get the relevant row index from a former dataframe
     with consecutive index values representing years
     given a time/year input.
 
     Args:
-        data: The data that may or may not span time
+        ends: The values representing the start and finish of the 
+            former dataframe's index
         time: Model time
 
     Returns:
@@ -47,17 +48,17 @@ def get_assortative_component(
 
 
 def get_child_parent_component(ages_i, ages_j, fert, fert_ends, weight_prod, time):
-    age_gap_mat = jnp.abs(ages_i[:, None] - ages_j[None, :])
+    age_gap_mat = jnp.abs(ages_i[:, None] - ages_j[None, :]).astype(jnp.int32)
     child_age_mat = jnp.minimum(ages_i[:, None], ages_j[None, :])
     child_birth_years = time - child_age_mat
     clamped_birth_years = get_year_index(fert_ends, child_birth_years)
-    return jnp.sum(weight_prod * jnp.array(fert)[clamped_birth_years, age_gap_mat])
+    return jnp.sum(weight_prod * fert[clamped_birth_years, age_gap_mat])
 
 
 def build_s_matrix(
-    weights: pd.DataFrame,
+    weights: jnp.array,
     weight_ends: jnp.array,
-    fert: pd.DataFrame,
+    fert: jnp.array,
     fert_ends: jnp.array,
     time: float,
     bg_mixing: float,
@@ -70,7 +71,9 @@ def build_s_matrix(
 
     Args:
         weights: Within age brackets weight by age group and year
-        fert: ***
+        weight_ends: The start and finish of the weight index
+        fert: The fertility data (padded with zeroes)
+        fert_ends: The start and finish of the fertility index
         time: Model time
         bg_mixing: Background mixing value
         a_spread: Decay parameter for assortative mixing
@@ -81,7 +84,7 @@ def build_s_matrix(
     n_groups = len(AGE_STRATA)
     s_matrix = jnp.zeros((n_groups, n_groups))
     year_idx = get_year_index(weight_ends, time)
-    current_weights = jnp.array(weights)[year_idx, :]
+    current_weights = weights[year_idx, :]
 
     for i, lower_i in enumerate(AGE_STRATA):
         upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
@@ -112,11 +115,11 @@ def build_s_matrix(
 
 
 def build_c_matrix(
-    weights: pd.DataFrame,
+    weights: jnp.array,
     weight_ends: jnp.array,
-    pops: pd.DataFrame,
+    pops: jnp.array,
     pop_ends: jnp.array,
-    fert: pd.DataFrame,
+    fert: jnp.array,
     fert_ends: jnp.array,
     time: float,
     bg_mixing: float,
@@ -131,8 +134,11 @@ def build_c_matrix(
 
     Args:
         weights: Within age brackets weight by age group and year
+        weight_ends: The start and finish of the weight index
         pops: Population sizes by age group
-        fert: ***
+        pop_ends: The start and finish of the population index
+        fert: The fertility data (padded with zeroes)
+        fert_ends: The start and finish of the fertility index
         time: Model time
         bg_mixing: Background mixing value
         a_spread: Decay parameter for assortative mixing
@@ -141,16 +147,16 @@ def build_c_matrix(
         The C matrix
     """
     year_idx = get_year_index(pop_ends, time)
-    pops = jnp.array(pops)[year_idx, :]
+    pops = pops[year_idx, :]
     return pops[None, :] * build_s_matrix(weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread)
 
 
 def get_norm_c_matrix(
-    weights: pd.DataFrame,
+    weights: jnp.array,
     weight_ends: jnp.array,
-    pops: pd.DataFrame,
+    pops: jnp.array,
     pop_ends: jnp.array,
-    fert: pd.DataFrame,
+    fert: jnp.array,
     fert_ends: jnp.array,
     time: float,
     bg_mixing: float,
@@ -161,8 +167,11 @@ def get_norm_c_matrix(
 
     Args:
         weights: Within age brackets weight by age group and year
+        weight_ends: The start and finish of the weight index
         pops: Population sizes by age group
-        fert: ***
+        pop_ends: The start and finish of the population index
+        fert: The fertility data (padded with zeroes)
+        fert_ends: The start and finish of the fertility index
         time: Model time
         bg_mixing: Background mixing value
         a_spread: Decay parameter for assortative mixing

@@ -73,11 +73,13 @@ def get_group_popsizes(
         The dataframe with rows for years and columns for age groups
     """
     add_groups_to_single_pop(single_age_pops)
-    return (
+    group_popsizes = (
         single_age_pops.groupby(["Time", "Age Group"], observed=True)["Pop"]
         .sum()
         .unstack("Age Group")
     )
+    assert np.all(np.diff(group_popsizes.index.values) == 1)
+    return group_popsizes
 
 
 def get_un_mortality(
