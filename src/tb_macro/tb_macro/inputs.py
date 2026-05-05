@@ -209,3 +209,21 @@ def build_age_weight_lookup(
     assert (weights.index.diff()[1:] == 1).all(), "age weight indices not consecutive"
     assert (weights.columns.diff()[1:] == 1).all(), "age weight ages not consecutive"
     return weights
+
+
+def get_fertility_data(
+    iso3: str,
+) -> pd.DataFrame:
+    """Get the UN fertility data.
+
+    Args:
+        iso3: Country identifier
+
+    Returns:
+        The data
+    """
+    raw_data = pd.read_csv(DATA_PATH / f"population/un_fertility_rates_{iso3}.csv", index_col=0)
+    data = raw_data.div(raw_data.sum(axis=1), axis=0)
+    data.columns = data.columns.astype(int)
+    assert np.all(np.diff(data.index.values) == 1)
+    return data
