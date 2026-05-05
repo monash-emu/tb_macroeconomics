@@ -56,6 +56,7 @@ def get_child_parent_component(ages_i, ages_j, fert, fert_ends, weight_prod, tim
 
 def build_s_matrix(
     weights: pd.DataFrame,
+    weight_ends: jnp.array,
     fert: pd.DataFrame,
     fert_ends: jnp.array,
     time: float,
@@ -79,7 +80,6 @@ def build_s_matrix(
     """
     n_groups = len(AGE_STRATA)
     s_matrix = jnp.zeros((n_groups, n_groups))
-    weight_ends = weights.index[[0, -1]]
     year_idx = get_year_index(weight_ends, time)
     current_weights = jnp.array(weights)[year_idx, :]
 
@@ -113,7 +113,9 @@ def build_s_matrix(
 
 def build_c_matrix(
     weights: pd.DataFrame,
+    weight_ends: jnp.array,
     pops: pd.DataFrame,
+    pop_ends: jnp.array,
     fert: pd.DataFrame,
     fert_ends: jnp.array,
     time: float,
@@ -138,15 +140,16 @@ def build_c_matrix(
     Returns:
         The C matrix
     """
-    pop_ends = pops.index[[0, -1]]
     year_idx = get_year_index(pop_ends, time)
     pops = jnp.array(pops)[year_idx, :]
-    return pops[None, :] * build_s_matrix(weights, fert, fert_ends, time, bg_mixing, a_spread)
+    return pops[None, :] * build_s_matrix(weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread)
 
 
 def get_norm_c_matrix(
     weights: pd.DataFrame,
+    weight_ends: jnp.array,
     pops: pd.DataFrame,
+    pop_ends: jnp.array,
     fert: pd.DataFrame,
     fert_ends: jnp.array,
     time: float,
@@ -167,7 +170,7 @@ def get_norm_c_matrix(
     Returns:
         The normalised C matrix
     """
-    c_matrix = build_c_matrix(weights, pops, fert, fert_ends, time, bg_mixing, a_spread)
+    c_matrix = build_c_matrix(weights, weight_ends, pops, pop_ends, fert, fert_ends, time, bg_mixing, a_spread)
     eigvals = jnp.linalg.eigvals(c_matrix)
     spectral_radius = jnp.max(jnp.abs(eigvals))
     return c_matrix / spectral_radius
