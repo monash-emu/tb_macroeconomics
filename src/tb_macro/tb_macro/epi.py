@@ -2,19 +2,9 @@ from typing import Optional
 from collections import namedtuple
 import numpy as np
 import pandas as pd
-from summer3.epi import (
-    CategoryGroup,
-    CategoryData,
-    StratSpec,
-    ManagedArray,
-    mixing_matrix,
-    TransitionFlow,
-    CompartmentalEpiModel,
-    CompartmentMap,
-    Stratification,
-)
+from summer3.epi import TransitionFlow, CompartmentalEpiModel, CompartmentMap, Stratification
 from summer3.graph import defer, CompartmentValues, Parameter, Time
-from tb_macro.constants import ALL_COMPARTMENTS, INFECT_COMPS, AGE_STRATA
+from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
 from tb_macro.utils import get_triang_vals, tanh_based_scaleup
 
 ModelSpec = namedtuple(
@@ -23,9 +13,15 @@ ModelSpec = namedtuple(
 )
 
 
-def get_base_model() -> ModelSpec:
+def get_base_model(
+    start_time: float,
+    end_time: float,
+) -> ModelSpec:
     """Build and return the base model along with the stratifications.
-
+    Args:
+        start_time: Run start time
+        end_time: Run end time
+    
     Returns:
         The model, the compartmental states, the age states,
             the clinical states of the active compartment and
@@ -39,7 +35,7 @@ def get_base_model() -> ModelSpec:
     humans.stratify(infect_strat, (disease_state, ["active"]))
     clin_strat = Stratification("clinical", ["subclin", "clin"])
     humans.stratify(clin_strat, (disease_state, ["active"]))
-    times = pd.Index(np.arange(1800.0, 2000.0, 1.0))
+    times = pd.Index(np.arange(start_time, end_time, 1.0))
     return ModelSpec(
         CompartmentalEpiModel(humans, times),
         disease_state,
