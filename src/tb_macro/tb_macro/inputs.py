@@ -96,7 +96,7 @@ def get_un_mortality(
     Returns:
         Dataframe with columns for age groups and rows for years
     """
-    mort_data = pd.read_csv(DATA_PATH / "population/un_mortality_20260506T0038Z.csv")
+    mort_data = pd.read_csv(DATA_PATH / "population/un_mortality_20260506T0212Z.csv")
     relevant_cols = ["Time", "AgeGrp", "DeathTotal"]
     country_filt = mort_data["ISO3_code"] == iso3
     time_filt = mort_data["Time"] >= start_year
@@ -140,7 +140,8 @@ def load_conmat(
     Returns:
         Raw conmat data
     """
-    conmat_data = pd.read_csv(DATA_PATH / f"mixing/conmat_all_{iso3}.csv", index_col=0)
+    conmat_dir = BASE_PATH / "src/tb_macro/tb_macro/conmat/"
+    conmat_data = pd.read_csv(conmat_dir / f"conmat_all_{iso3}.csv", index_col=0)
     conmat_agebreaks = [lower_conmat(a) for a in conmat_data["age_group_from"].unique()]
     assert set(AGE_STRATA) == set(
         conmat_agebreaks
@@ -222,11 +223,11 @@ def get_fertility_data(
     Returns:
         The data
     """
-    filename = f"un_fertility_20260506T0038Z.csv"
+    filename = f"un_fertility_20260506T0219Z.csv"
     raw_data = pd.read_csv(DATA_PATH / "population" / filename)
     country_data = raw_data.loc[raw_data["ISO3_code"] == "KIR"]
     data = country_data.pivot(index="Time", columns="AgeGrp", values="ASFR")
-    norm_data = data.div(raw_data.sum(axis=1), axis=0)
+    norm_data = data.div(data.sum(axis=1), axis=0)
     norm_data.columns = norm_data.columns.astype(int)
     assert np.all(np.diff(norm_data.index.values) == 1)
     return norm_data
