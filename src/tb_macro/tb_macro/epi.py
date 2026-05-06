@@ -1,6 +1,7 @@
 from typing import Optional
 from collections import namedtuple
 import numpy as np
+from jax import numpy as jnp
 import pandas as pd
 from summer3.epi import (
     TransitionFlow,
@@ -239,3 +240,28 @@ def add_detection(
         tv_detection_rate,
     )
     epi_model.add_flow(detect)
+
+
+def add_replacement_deaths(
+    epi_model, 
+    disease_state, 
+    age_strat, 
+    death_rates,
+):
+    for age in AGE_STRATA:
+        age_death_rates = death_rates[age]
+
+        times = age_death_rates.index.to_numpy(dtype=float)
+        rates = age_death_rates.to_numpy(dtype=float)
+
+        def death_func(t):
+            return jnp.interp(t, times, rates, left=rates[0], right=rates[-1])
+
+        for comp in ALL_COMPARTMENTS:
+            replacement_deaths = TransitionFlow(
+                f"replacement_deaths_{comp}_{age}",
+                (disease_state[str(comp)], age_strat[str(age)]),
+                (disease_state["mtb_naive"], age_strat["0"]),
+                defer(death_func)(Time),
+            )
+            epi_model.add_flow(replacement_deaths)
