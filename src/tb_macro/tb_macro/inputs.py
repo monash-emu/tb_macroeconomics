@@ -2,7 +2,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from tb_macro.constants import DATA_PATH, AGE_STRATA, MAX_AGE
+from tb_macro.constants import BASE_PATH, DATA_PATH, AGE_STRATA, MAX_AGE
 
 
 def get_country_pop(
@@ -16,7 +16,7 @@ def get_country_pop(
     Returns:
         The data
     """
-    data = pd.read_csv(DATA_PATH / "population/un_population_20260506T0013Z.csv")
+    data = pd.read_csv(DATA_PATH / "population/un_population_20260506T0211Z.csv")
     return data[data["ISO3_code"] == iso3][["Time", "AgeGrp", "PopTotal"]]
 
 
@@ -230,3 +230,23 @@ def get_fertility_data(
     norm_data.columns = norm_data.columns.astype(int)
     assert np.all(np.diff(norm_data.index.values) == 1)
     return norm_data
+
+
+def write_conmat_pop_csv(
+    iso3: str,
+    year: int,
+):
+    """Generate the Conmat population data
+    needed for mixing matrix construction.
+
+    Args:
+        iso3: Country identifier
+        year: Year to extract data from
+    """
+    pop_data = get_country_pop(iso3)
+    single_age = get_single_age_pop_from_ungroups(pop_data)
+    group_popsize = get_group_popsizes(single_age)
+    pops = group_popsize.loc[year]
+    pops.index.name = "age"
+    pops.name = "population"
+    pops.to_csv(BASE_PATH / f"src/tb_macro/tb_macro/conmat/{iso3}_pop_{year}.csv")
