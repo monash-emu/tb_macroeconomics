@@ -96,7 +96,7 @@ def get_un_mortality(
     Returns:
         Dataframe with columns for age groups and rows for years
     """
-    mort_data = pd.read_csv(DATA_PATH / "population/un_mortality.csv")
+    mort_data = pd.read_csv(DATA_PATH / "population/un_mortality_20260506T0038Z.csv")
     relevant_cols = ["Time", "AgeGrp", "DeathTotal"]
     country_filt = mort_data["ISO3_code"] == iso3
     time_filt = mort_data["Time"] >= start_year
@@ -222,8 +222,11 @@ def get_fertility_data(
     Returns:
         The data
     """
-    raw_data = pd.read_csv(DATA_PATH / f"population/un_fertility_rates_{iso3}.csv", index_col=0)
-    data = raw_data.div(raw_data.sum(axis=1), axis=0)
-    data.columns = data.columns.astype(int)
-    assert np.all(np.diff(data.index.values) == 1)
-    return data
+    filename = f"un_fertility_20260506T0038Z.csv"
+    raw_data = pd.read_csv(DATA_PATH / "population" / filename)
+    country_data = raw_data.loc[raw_data["ISO3_code"] == "KIR"]
+    data = country_data.pivot(index="Time", columns="AgeGrp", values="ASFR")
+    norm_data = data.div(raw_data.sum(axis=1), axis=0)
+    norm_data.columns = norm_data.columns.astype(int)
+    assert np.all(np.diff(norm_data.index.values) == 1)
+    return norm_data
