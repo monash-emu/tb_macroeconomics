@@ -16,7 +16,7 @@ def get_country_pop(
     Returns:
         The data
     """
-    data = pd.read_csv(DATA_PATH / "population/un_population.csv")
+    data = pd.read_csv(DATA_PATH / "population/un_population_20260506T0013Z.csv")
     return data[data["ISO3_code"] == iso3][["Time", "AgeGrp", "PopTotal"]]
 
 
