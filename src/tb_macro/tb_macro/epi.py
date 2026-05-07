@@ -65,12 +65,6 @@ def add_natural_history(
         clin_strat: The clinical stratification
         infect_strat: The infectiousness stratification
     """
-    contain = TransitionFlow(
-        "containment",
-        disease_state["incipient"],
-        disease_state["contained"],
-        Parameter("contain", 0.0),
-    )
     clearance = TransitionFlow(
         "clearance",
         disease_state["contained"],
@@ -82,12 +76,6 @@ def add_natural_history(
         disease_state["contained"],
         disease_state["incipient"],
         Parameter("breakdown_rate", 0.0),
-    )
-    progression = TransitionFlow(
-        "progression",
-        disease_state["incipient"],
-        clin_strat["subclin"],
-        Parameter("progression", 0.0),
     )
     increase_infect = TransitionFlow(
         "increase_infectiousness",
@@ -121,10 +109,8 @@ def add_natural_history(
     )
 
     # Add flows to model
-    epi_model.add_flow(contain)
     epi_model.add_flow(clearance)
     epi_model.add_flow(breakdown)
-    epi_model.add_flow(progression)
     epi_model.add_flow(increase_infect)
     epi_model.add_flow(decrease_infect)
     epi_model.add_flow(clin_dev)
