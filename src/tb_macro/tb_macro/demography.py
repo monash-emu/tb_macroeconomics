@@ -1,7 +1,8 @@
+from typing import Tuple
 import pandas as pd
 from jax import numpy as jnp
 
-from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow
+from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow, EntryFlow
 from summer3.graph import defer, Time
 
 from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
@@ -73,3 +74,80 @@ def add_ageing_flows(
             1.0 / (top - bottom),
         )
         epi_model.add_flow(ageing)
+
+
+def prepare_pop_data_for_entries(
+    pop_data: pd.DataFrame,
+    start_time: float,
+    start_pop: float,
+) -> Tuple[jnp.array]:
+    """Prepare the aggregate total population data
+    for use by the model for new entries.
+
+    Args:
+        pop_data: The population data
+        start_time: Model start time
+        start_pop: Model starting population
+
+    Returns:
+        The times and entry rates
+    """
+    non_dec_data = pop_data.cummax()
+    non_dec_data[start_time] = start_pop
+    non_dec_data_w_start = non_dec_data.sort_index()
+    entry_birth_rates = (non_dec_data_w_start.diff() / non_dec_data_w_start.index.diff()).dropna()
+    times = jnp.array(entry_birth_rates.index)
+    rates = jnp.array(entry_birth_rates)
+    return times, rates
+
+
+def get_birth_rate_func(
+    start_time: float, 
+    rates: jnp.array,
+    times: jnp.array,
+) -> callable:
+    """Get the birth rate function for use by the
+    model in 
+
+    Args:
+        start_time: Model start time
+        rates: Birth entry rates
+        times: Corresponding times for entry rates
+
+    Returns:
+        The birth rate function
+    """
+    def birth_rate_func(model_time):
+        time = model_time + start_time
+        idx = jnp.searchsorted(times, time)
+        return rates[idx]
+    return birth_rate_func
+
+
+def add_entry_births(
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    start_time: float, 
+    rates: jnp.array,
+    times: jnp.array,
+):
+    """Add entry births to a previously 
+    closed population model to match a target
+    population size over time.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        start_time: Model start time
+        rates: Birth entry rates
+        times: Corresponding times for entry rates
+    """
+    birth_func = get_birth_rate_func(start_time, rates, times)
+    entry_rate = EntryFlow(
+        "entry_births",
+        (disease_state["mtb_naive"], age_strat["0"]),
+        defer(birth_func)(Time),
+    )
+    epi_model.add_flow(entry_rate)
