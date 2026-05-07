@@ -243,20 +243,31 @@ def add_detection(
 
 
 def add_replacement_deaths(
-    epi_model, 
-    disease_state, 
-    age_strat, 
-    death_rates,
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    death_rates: pd.DataFrame,
 ):
-    for age in AGE_STRATA:
-        age_death_rates = death_rates[age]
+    """Add a transition to represent deaths 
+    being replaced by births.
 
-        times = age_death_rates.index.to_numpy(dtype=float)
-        rates = age_death_rates.to_numpy(dtype=float)
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        death_rates: The per capita death rates
+    """
 
+    def make_death_func(times, rates):
         def death_func(t):
             return jnp.interp(t, times, rates, left=rates[0], right=rates[-1])
+        return death_func
 
+    for age in AGE_STRATA:
+        age_death_rates = death_rates[age]
+        times = age_death_rates.index.to_numpy(dtype=float)
+        rates = age_death_rates.to_numpy(dtype=float)
+        death_func = make_death_func(times, rates)
         for comp in ALL_COMPARTMENTS:
             replacement_deaths = TransitionFlow(
                 f"replacement_deaths_{comp}_{age}",
