@@ -247,6 +247,7 @@ def add_replacement_deaths(
     disease_state: Stratification,
     age_strat: Stratification,
     death_rates: pd.DataFrame,
+    start_time: float
 ):
     """Add a transition to represent deaths 
     being replaced by births.
@@ -256,11 +257,13 @@ def add_replacement_deaths(
         disease_state: The compartmental stratification object
         age_strat: The age stratification object
         death_rates: The per capita death rates
+        start_time: Model start time
     """
 
     def make_death_func(times, rates):
         def death_func(t):
-            return jnp.interp(t, times, rates, left=rates[0], right=rates[-1])
+            model_time = t + start_time
+            return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
         return death_func
 
     for age in AGE_STRATA:
