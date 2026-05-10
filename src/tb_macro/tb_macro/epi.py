@@ -10,7 +10,7 @@ from summer3.epi import (
     Stratification,
 )
 from summer3.graph import defer, CompartmentValues, Parameter, Time
-from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
+from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA, INF_STRATA
 from tb_macro.utils import get_triang_vals, tanh_based_scaleup
 
 ModelSpec = namedtuple(
@@ -37,7 +37,7 @@ def get_base_model(
     humans = CompartmentMap.new(disease_state)
     age_strings = [str(a) for a in AGE_STRATA]
     age_strat = humans.stratify(Stratification("age", age_strings))
-    infect_strat = Stratification("infectious", ["low", "high"])
+    infect_strat = Stratification("infectious", INF_STRATA)
     humans.stratify(infect_strat, (disease_state, ["active"]))
     clin_strat = Stratification("clinical", ["subclin", "clin"])
     humans.stratify(clin_strat, (disease_state, ["active"]))

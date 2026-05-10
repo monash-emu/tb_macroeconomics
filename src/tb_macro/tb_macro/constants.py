@@ -19,6 +19,12 @@ INFECT_COMPS = [
     "recovered",
 ]
 
+# Infectiousness strata
+INF_STRATA = [
+    "low",
+    "high",
+]
+
 # Age-related
 AGE_STRATA = [0, 3, 5, 10, 15, 18, 40, 65]
 MAX_AGE = 120
