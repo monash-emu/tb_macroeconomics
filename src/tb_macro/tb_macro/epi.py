@@ -198,3 +198,41 @@ def add_detection(
         tv_detection_rate,
     )
     epi_model.add_flow(detect)
+
+
+def add_latency_flows(
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    clin_strat: Stratification,
+    infect_strat: Stratification,
+):
+    """Add the latency / infection progression flows to the model.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        clin_strat: The clinical stratification object
+        infect_strat: The infectiousness stratification object
+    """
+    for age in AGE_STRATA:
+        latency_age_cat = "age0" if age < 5 else "age5" if age < 15 else "age15"
+        contain = TransitionFlow(
+            f"containment_{age}",
+            (disease_state["incipient"], age_strat[str(age)]),
+            (disease_state["contained"], age_strat[str(age)]),
+            Parameter(f"containment_{latency_age_cat}", 0.0),
+        )
+        epi_model.add_flow(contain)
+
+        for strat in INF_STRATA:
+            prop_inf = Parameter("progression_prop_infectious", 0.0)
+            strat_prop = prop_inf if strat == "high" else 1.0 - prop_inf
+            progression = TransitionFlow(
+                f"progression_{strat}_{age}",
+                (disease_state["incipient"], age_strat[str(age)]),
+                (clin_strat["subclin"], infect_strat[strat], age_strat[str(age)]),
+                Parameter(f"progression_{latency_age_cat}", 0.0) * strat_prop,
+            )
+            epi_model.add_flow(progression)
