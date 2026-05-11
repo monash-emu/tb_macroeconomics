@@ -1,4 +1,5 @@
 from typing import Tuple
+import numpy as np
 import pandas as pd
 from jax import numpy as jnp
 
@@ -6,6 +7,29 @@ from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow, E
 from summer3.graph import defer, Time
 
 from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
+
+
+def make_death_func(
+    times: np.array,
+    rates: np.array,
+    start_time: float,
+) -> callable:
+    """Make the function of death rates over time
+    given the data and the model's starting time.
+
+    Args:
+        times: The per capita death rates
+        rates: The corresponding times for these rates
+        start_time: The model starting time as a calendar year
+
+    Returns:
+        The function to get the death rate for a given calendar time
+    """
+    def death_func(t):
+        model_time = t + start_time
+        return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
+
+    return death_func
 
 
 def add_replacement_deaths(
@@ -25,19 +49,11 @@ def add_replacement_deaths(
         death_rates: The per capita death rates
         start_time: Model start time
     """
-
-    def make_death_func(times, rates):
-        def death_func(t):
-            model_time = t + start_time
-            return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
-
-        return death_func
-
     for age in AGE_STRATA:
         age_death_rates = death_rates[age]
         times = age_death_rates.index.to_numpy(dtype=float)
         rates = age_death_rates.to_numpy(dtype=float)
-        death_func = make_death_func(times, rates)
+        death_func = make_death_func(times, rates, start_time)
         for comp in ALL_COMPARTMENTS:
             replacement_deaths = TransitionFlow(
                 f"replacement_deaths_{comp}_{age}",
