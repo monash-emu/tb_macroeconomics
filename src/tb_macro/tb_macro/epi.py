@@ -13,7 +13,8 @@ from summer3.graph import defer, Parameter, Time, CompartmentValues
 from summer3.epi import CategoryData, ManagedArray, CategoryGroup, StratSpec
 from summer3.arrayops import mul_ma_catdata
 from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA, INF_STRATA, INFECT_COMPS
-from tb_macro.utils import get_triang_vals, tanh_based_scaleup
+from tb_macro.utils import get_triang_vals
+from tb_macro.mixing import get_norm_c_matrix
 
 ModelSpec = namedtuple(
     "ModelSpec",
@@ -209,6 +210,69 @@ def infect_process(
     return CategoryData(infectee_cats, age_foi)
 
 
+def add_infection_flows(
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    clin_strat: Stratification,
+    infect_strat: Stratification,
+    age_weights: jnp.array,
+    group_popsize: jnp.array,
+    fert_padded: jnp.array,
+    young_end_age: float,
+):
+    """Add infection flows to the model.
+    Flows are added from each susceptible compartment
+    to the subclinical compartment,
+    with the force of infection computed by the infect_process function.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        clin_strat: The clinical stratification object
+        infect_strat: The infectiousness stratification object
+        age_weights: The age weights for the mixing matrix
+        group_popsize: The population sizes for the mixing matrix
+        fert_padded: The fertility data for the mixing matrix
+        young_end_age: The maximum age to receive reduced susceptibility
+    """
+    for comp in INFECT_COMPS:
+        suscept_comp = "cleared" if comp in ["cleared", "recovered"] else comp
+        reinfect_foi = defer(infect_process)(
+            CompartmentValues,
+            age_strat.categories(),
+            disease_state["active"],
+            infect_strat.categories(),
+            clin_strat.categories(),
+            Parameter("contact_rate", 0.0) * Parameter(f"rel_sus_{suscept_comp}", 0.0),
+            Parameter("freq_dens_exponent", 1.0),
+            jnp.array(AGE_STRATA),
+            young_end_age,
+            Parameter("young_suscept", 0.0),
+            Parameter("rel_infectiousness_lowinf", 0.0),
+            Parameter("rel_infectiousness_subclin", 0.0),
+            get_norm_c_matrix,
+            Parameter("a_spread", 0.0),
+            Parameter("bg_mixing", 0.0),
+            Parameter("pc_strength", 0.0),
+            jnp.array(age_weights),
+            jnp.array(age_weights.index[[0, -1]]),
+            jnp.array(group_popsize),
+            jnp.array(group_popsize.index[[0, -1]]),
+            jnp.array(fert_padded),
+            jnp.array(fert_padded.index[[0, -1]]),
+            Time,
+        )
+        reinfect = TransitionFlow(
+            f"infect_{comp}",
+            disease_state[comp],
+            disease_state["incipient"],
+            reinfect_foi,
+        )
+        epi_model.add_flow(reinfect)
+
+
 def add_seeding(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
@@ -229,36 +293,6 @@ def add_seeding(
         defer(get_triang_vals)(Time, peak_time, peak_height, width),
     )
     epi_model.add_flow(seed_flow)
-
-
-def add_detection(
-    epi_model: CompartmentalEpiModel,
-    disease_state: Stratification,
-    clin_strat: Stratification,
-):
-    """Add the process of disease detection to the model.
-
-    Args:
-        epi_model: The epidemiological model to add the flows to
-        disease_state: The compartmental stratification object
-        clin_strat: The clinical stratification object
-    """
-    tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(
-        tanh_based_scaleup
-    )(
-        Time,
-        Parameter("passive_detection_shape", 0.0),
-        Parameter("passive_detection_inflection", 0.0),
-        Parameter("passive_detection_past_frac", 0.0),
-        1.0,
-    )
-    detect = TransitionFlow(
-        "detection",
-        (disease_state["active"], clin_strat["clin"]),
-        disease_state["treatment"],
-        tv_detection_rate,
-    )
-    epi_model.add_flow(detect)
 
 
 def add_latency_flows(

@@ -11,36 +11,37 @@ from summer3.graph import defer, Time, Parameter
 
 from tb_macro.demography import make_death_func
 from tb_macro.constants import AGE_STRATA
+from tb_macro.utils import tanh_based_scaleup
 
 
-def add_health_system_flows(
+def add_detection(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
     clin_strat: Stratification,
-    infect_strat: Stratification,
 ):
-    """Add the health system-related flows to the epidemiological model.
+    """Add the process of disease detection to the model.
 
     Args:
         epi_model: The epidemiological model to add the flows to
         disease_state: The compartmental stratification object
         clin_strat: The clinical stratification object
-        infect_strat: The infectiousness stratification object
     """
-    treat_recover = TransitionFlow(
-        "treatment_recovery",
-        disease_state["treatment"],
-        disease_state["recovered"],
-        Parameter("treatment_recovery", 0.0),
+    tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(
+        tanh_based_scaleup
+    )(
+        Time,
+        Parameter("passive_detection_shape", 0.0),
+        Parameter("passive_detection_inflection", 0.0),
+        Parameter("passive_detection_past_frac", 0.0),
+        1.0,
     )
-    treat_relapse = TransitionFlow(
-        "treatment_relapse",
+    detect = TransitionFlow(
+        "detection",
+        (disease_state["active"], clin_strat["clin"]),
         disease_state["treatment"],
-        (clin_strat["subclin"], infect_strat["low"]),
-        Parameter("treatment_relapse", 0.0),
+        tv_detection_rate,
     )
-    epi_model.add_flow(treat_recover)
-    epi_model.add_flow(treat_relapse)
+    epi_model.add_flow(detect)
 
 
 def get_rx_outcome_rate(
