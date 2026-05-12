@@ -67,6 +67,26 @@ def build_full_s_matrix_single_age(
     return full_kernel
 
 
+def get_full_normalised_within_age_band_weights(
+    current_weights: jnp.array,
+) -> jnp.array:
+    """Get a matrix of age-specific weights that contains
+    the weight values for a particular age group (rows)
+    with zeroes outside of the single ages spanned by the age group.
+
+    Args:
+        current_weights: Within age brackets weight by age group and year 
+
+    Returns:
+        The weight matrix
+    """
+    w_group = jnp.zeros((len(AGE_STRATA), MAX_AGE + 1))
+    for a, lower in enumerate(AGE_STRATA):
+        upper = MAX_AGE + 1 if lower == AGE_STRATA[-1] else AGE_STRATA[a + 1]
+        w_group = w_group.at[a, lower:upper].set(current_weights[lower:upper])
+    return w_group
+
+
 def aggregate_full_matrix_to_groups(
     full_kernel: jnp.array,
     current_weights: jnp.array,
@@ -83,39 +103,8 @@ def aggregate_full_matrix_to_groups(
     Returns:
         len(AGE_STRATA) x len(AGE_STRATA) weighted group transmission matrix
     """
-    n_groups = len(AGE_STRATA)
-    s_matrix = jnp.zeros((n_groups, n_groups))
-
-    w_group = jnp.zeros((n_groups, MAX_AGE + 1))
-    for a, lower in enumerate(AGE_STRATA):
-        upper = MAX_AGE + 1 if lower == AGE_STRATA[-1] else AGE_STRATA[a + 1]
-        weights_i = current_weights[lower:upper]
-        weights_i_norm = weights_i / jnp.sum(weights_i)
-        w_group = w_group.at[a, lower:upper].set(weights_i_norm)
-
-    for i, lower_i in enumerate(AGE_STRATA):
-        upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
-        # weights_i = current_weights[lower_i:upper_i]
-        # weights_i_norm = weights_i / jnp.sum(weights_i)
-
-        weights_i_norm = w_group[i, lower_i:upper_i]
-
-        for j, lower_j in enumerate(AGE_STRATA[: i + 1]):
-            upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
-            # weights_j = current_weights[lower_j:upper_j]
-            # weights_j_norm = weights_j / jnp.sum(weights_j)
-
-            weights_j_norm = w_group[j, lower_j:upper_j]
-
-            # Extract kernel block and apply weights
-            kernel_block = full_kernel[lower_i:upper_i, lower_j:upper_j]
-            weight_prod = jnp.outer(weights_i_norm, weights_j_norm)
-            block_value = jnp.sum(weight_prod * kernel_block)
-
-            s_matrix = s_matrix.at[i, j].set(block_value)
-            s_matrix = s_matrix.at[j, i].set(block_value)
-
-    return s_matrix
+    w_group = get_full_normalised_within_age_band_weights(current_weights)
+    return w_group @ full_kernel @ w_group.T
 
 
 def build_s_matrix(
@@ -155,9 +144,7 @@ def build_s_matrix(
     )
 
     # Aggregate to group level with weighting
-    s_matrix = aggregate_full_matrix_to_groups(full_kernel, current_weights)
-
-    return s_matrix
+    return aggregate_full_matrix_to_groups(full_kernel, current_weights)
 
 
 def build_c_matrix(
