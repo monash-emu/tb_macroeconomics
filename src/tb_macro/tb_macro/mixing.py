@@ -86,15 +86,26 @@ def aggregate_full_matrix_to_groups(
     n_groups = len(AGE_STRATA)
     s_matrix = jnp.zeros((n_groups, n_groups))
 
+    w_group = jnp.zeros((n_groups, MAX_AGE + 1))
+    for a, lower in enumerate(AGE_STRATA):
+        upper = MAX_AGE + 1 if lower == AGE_STRATA[-1] else AGE_STRATA[a + 1]
+        weights_i = current_weights[lower:upper]
+        weights_i_norm = weights_i / jnp.sum(weights_i)
+        w_group = w_group.at[a, lower:upper].set(weights_i_norm)
+
     for i, lower_i in enumerate(AGE_STRATA):
         upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
-        weights_i = current_weights[lower_i:upper_i]
-        weights_i_norm = weights_i / jnp.sum(weights_i)
+        # weights_i = current_weights[lower_i:upper_i]
+        # weights_i_norm = weights_i / jnp.sum(weights_i)
+
+        weights_i_norm = w_group[i, lower_i:upper_i]
 
         for j, lower_j in enumerate(AGE_STRATA[: i + 1]):
             upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
-            weights_j = current_weights[lower_j:upper_j]
-            weights_j_norm = weights_j / jnp.sum(weights_j)
+            # weights_j = current_weights[lower_j:upper_j]
+            # weights_j_norm = weights_j / jnp.sum(weights_j)
+
+            weights_j_norm = w_group[j, lower_j:upper_j]
 
             # Extract kernel block and apply weights
             kernel_block = full_kernel[lower_i:upper_i, lower_j:upper_j]
