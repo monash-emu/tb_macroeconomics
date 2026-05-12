@@ -84,14 +84,11 @@ def get_group_popsizes(
 
 def get_un_mortality(
     iso3: str,
-    start_year: int,
 ) -> pd.DataFrame:
-    """Get UN mortality data for a country after
-    a specified year.
+    """Get UN mortality data for a specified country.
 
     Args:
         iso3: The country identifier
-        start_year: The year to start the data from
 
     Returns:
         Dataframe with columns for age groups and rows for years
@@ -99,8 +96,7 @@ def get_un_mortality(
     mort_data = pd.read_csv(DATA_PATH / "population/un_mortality_20260506T0212Z.csv")
     relevant_cols = ["Time", "AgeGrp", "DeathTotal"]
     country_filt = mort_data["ISO3_code"] == iso3
-    time_filt = mort_data["Time"] >= start_year
-    mort_data = mort_data.loc[country_filt & time_filt, relevant_cols]
+    mort_data = mort_data.loc[country_filt, relevant_cols]
     mort_data["DeathTotal"] *= 1000.0  # convert from thousands
     mort_data["age"] = mort_data["AgeGrp"].str.replace("100+", "100").astype(int)
     mort_data["Age Group"] = pd.cut(
