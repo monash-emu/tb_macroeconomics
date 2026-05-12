@@ -89,14 +89,16 @@ def aggregate_full_matrix_to_groups(
     for i, lower_i in enumerate(AGE_STRATA):
         upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
         weights_i = current_weights[lower_i:upper_i]
+        weights_i_norm = weights_i / jnp.sum(weights_i)
 
         for j, lower_j in enumerate(AGE_STRATA[: i + 1]):
             upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
             weights_j = current_weights[lower_j:upper_j]
+            weights_j_norm = weights_j / jnp.sum(weights_j)
 
             # Extract kernel block and apply weights
             kernel_block = full_kernel[lower_i:upper_i, lower_j:upper_j]
-            weight_prod = jnp.outer(weights_i, weights_j)
+            weight_prod = jnp.outer(weights_i_norm, weights_j_norm)
             block_value = jnp.sum(weight_prod * kernel_block)
 
             s_matrix = s_matrix.at[i, j].set(block_value)
