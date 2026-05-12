@@ -25,7 +25,6 @@ def get_year_index(
 
 
 def build_full_s_matrix_single_age(
-    current_weights: jnp.array,
     fert: jnp.array,
     fert_ends: jnp.array,
     time: float,
@@ -33,13 +32,12 @@ def build_full_s_matrix_single_age(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
-    """Construct the full single-age transmission matrix.
+    """Construct the full single-age transmission kernel matrix.
 
-    Computes the transmission kernel at single-year age resolution
-    before aggregation into groups.
+    Computes the unweighted transmission kernel at single-year age resolution.
+    Weights are applied later during group aggregation.
 
     Args:
-        current_weights: Weight distribution across all single ages
         fert: The fertility data (padded with zeroes)
         fert_ends: The start and finish of the fertility index
         time: Model time
@@ -48,7 +46,7 @@ def build_full_s_matrix_single_age(
         pc_strength: Scaling parameter for parent-child contacts
 
     Returns:
-        (MAX_AGE + 1) x (MAX_AGE + 1) transmission matrix
+        (MAX_AGE + 1) x (MAX_AGE + 1) unweighted transmission kernel
     """
     ages = jnp.arange(MAX_AGE + 1)
 
@@ -63,38 +61,44 @@ def build_full_s_matrix_single_age(
     clamped_birth_years = get_year_index(fert_ends, child_birth_years)
     child_parent_mat = pc_strength * fert[clamped_birth_years, age_gap_mat]
 
-    # Weight outer product and combine components
-    weight_prod = current_weights[:, None] * current_weights[None, :]
-    full_mat = bg_mixing + weight_prod * (assort_mat + child_parent_mat)
+    # Combine components (weights applied later)
+    full_kernel = bg_mixing + assort_mat + child_parent_mat
 
-    return full_mat
+    return full_kernel
 
 
 def aggregate_full_matrix_to_groups(
-    full_mat: jnp.array,
+    full_kernel: jnp.array,
+    current_weights: jnp.array,
 ) -> jnp.array:
-    """Aggregate single-age transmission matrix to group-level matrix.
+    """Aggregate single-age transmission kernel to group-level matrix.
 
-    Sums blocks of the full single-age matrix according to AGE_STRATA
-    boundaries to produce the group-level transmission matrix.
+    Applies weights and sums blocks of the full single-age kernel according to
+    AGE_STRATA boundaries to produce the weighted group-level transmission matrix.
 
     Args:
-        full_mat: (MAX_AGE + 1) x (MAX_AGE + 1) single-age matrix
+        full_kernel: (MAX_AGE + 1) x (MAX_AGE + 1) unweighted kernel
+        current_weights: Weight distribution across all single ages
 
     Returns:
-        len(AGE_STRATA) x len(AGE_STRATA) group transmission matrix
+        len(AGE_STRATA) x len(AGE_STRATA) weighted group transmission matrix
     """
     n_groups = len(AGE_STRATA)
     s_matrix = jnp.zeros((n_groups, n_groups))
 
     for i, lower_i in enumerate(AGE_STRATA):
         upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
+        weights_i = current_weights[lower_i:upper_i]
 
         for j, lower_j in enumerate(AGE_STRATA[: i + 1]):
             upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
+            weights_j = current_weights[lower_j:upper_j]
 
-            # Sum the block from the full matrix
-            block_value = jnp.sum(full_mat[lower_i:upper_i, lower_j:upper_j])
+            # Extract kernel block and apply weights
+            kernel_block = full_kernel[lower_i:upper_i, lower_j:upper_j]
+            weight_prod = jnp.outer(weights_i, weights_j)
+            block_value = jnp.sum(weight_prod * kernel_block)
+
             s_matrix = s_matrix.at[i, j].set(block_value)
             s_matrix = s_matrix.at[j, i].set(block_value)
 
@@ -114,7 +118,7 @@ def build_s_matrix(
     """Construct the symmetric s_matrix matrix.
 
     Computes transmission kernels at single-age resolution and aggregates
-    results to group level for efficiency and clarity.
+    results to group level with appropriate weighting.
 
     Args:
         weights: Within age brackets weight by age group and year
@@ -132,13 +136,13 @@ def build_s_matrix(
     year_idx = get_year_index(weight_ends, time)
     current_weights = weights[year_idx, :]
 
-    # Compute full single-age transmission matrix
-    full_mat = build_full_s_matrix_single_age(
-        current_weights, fert, fert_ends, time, bg_mixing, a_spread, pc_strength
+    # Compute full single-age transmission kernel (unweighted)
+    full_kernel = build_full_s_matrix_single_age(
+        fert, fert_ends, time, bg_mixing, a_spread, pc_strength
     )
 
-    # Aggregate to group level
-    s_matrix = aggregate_full_matrix_to_groups(full_mat)
+    # Aggregate to group level with weighting
+    s_matrix = aggregate_full_matrix_to_groups(full_kernel, current_weights)
 
     return s_matrix
 
