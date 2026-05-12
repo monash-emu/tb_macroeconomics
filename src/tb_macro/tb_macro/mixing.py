@@ -24,58 +24,81 @@ def get_year_index(
     return (clamped_time - ends[0]).astype(jnp.int32)
 
 
-def get_assortative_component(
-    ages_i: jnp.array,
-    ages_j: jnp.array,
-    a_spread: float,
-    weight_prod: jnp.array,
-) -> float:
-    """Population-weighted assortative mixing contribution
-    between two age bands.
-
-    Args:
-        ages_i: Contributing ages by row
-        ages_j: Contributing ages by column
-        a_spread: Decay parameter
-        weight_prod: Outer product of the weights
-
-    Returns:
-        Assortative mixing value
-    """
-    age_diff_mat = jnp.abs(ages_i[:, None] - ages_j[None, :])
-    assort_age_vals = (1.0 / a_spread) * jnp.exp(-age_diff_mat / a_spread)
-    return jnp.sum(weight_prod * assort_age_vals)
-
-
-def get_child_parent_component(
-    ages_i: jnp.array,
-    ages_j: jnp.array,
+def build_full_s_matrix_single_age(
+    current_weights: jnp.array,
     fert: jnp.array,
     fert_ends: jnp.array,
-    weight_prod: jnp.array,
     time: float,
+    bg_mixing: float,
+    a_spread: float,
     pc_strength: float,
-) -> float:
-    """Get the child-parent contribution to the mixing
-    matrix for a particular age group interaction.
+) -> jnp.array:
+    """Construct the full single-age transmission matrix.
+
+    Computes the transmission kernel at single-year age resolution
+    before aggregation into groups.
 
     Args:
-        ages_i: Contributing ages by row
-        ages_j: Contributing ages by column
+        current_weights: Weight distribution across all single ages
         fert: The fertility data (padded with zeroes)
         fert_ends: The start and finish of the fertility index
-        weight_prod: Outer product of the weights
         time: Model time
-        pc_strength: Scaling parameter for the strength of parent-child contacts
+        bg_mixing: Background mixing value
+        a_spread: Decay parameter for assortative mixing
+        pc_strength: Scaling parameter for parent-child contacts
 
     Returns:
-        The child-parent contribution
+        (MAX_AGE + 1) x (MAX_AGE + 1) transmission matrix
     """
-    age_gap_mat = jnp.abs(ages_i[:, None] - ages_j[None, :]).astype(jnp.int32)
-    child_age_mat = jnp.minimum(ages_i[:, None], ages_j[None, :])
+    ages = jnp.arange(MAX_AGE + 1)
+
+    # Assortative component: depends on age difference only
+    age_diff_mat = jnp.abs(ages[:, None] - ages[None, :])
+    assort_mat = (1.0 / a_spread) * jnp.exp(-age_diff_mat / a_spread)
+
+    # Child-parent component: depends on fertility and age gap
+    age_gap_mat = jnp.abs(ages[:, None] - ages[None, :]).astype(jnp.int32)
+    child_age_mat = jnp.minimum(ages[:, None], ages[None, :])
     child_birth_years = time - child_age_mat
     clamped_birth_years = get_year_index(fert_ends, child_birth_years)
-    return pc_strength * jnp.sum(weight_prod * fert[clamped_birth_years, age_gap_mat])
+    child_parent_mat = pc_strength * fert[clamped_birth_years, age_gap_mat]
+
+    # Weight outer product and combine components
+    weight_prod = current_weights[:, None] * current_weights[None, :]
+    full_mat = bg_mixing + weight_prod * (assort_mat + child_parent_mat)
+
+    return full_mat
+
+
+def aggregate_full_matrix_to_groups(
+    full_mat: jnp.array,
+) -> jnp.array:
+    """Aggregate single-age transmission matrix to group-level matrix.
+
+    Sums blocks of the full single-age matrix according to AGE_STRATA
+    boundaries to produce the group-level transmission matrix.
+
+    Args:
+        full_mat: (MAX_AGE + 1) x (MAX_AGE + 1) single-age matrix
+
+    Returns:
+        len(AGE_STRATA) x len(AGE_STRATA) group transmission matrix
+    """
+    n_groups = len(AGE_STRATA)
+    s_matrix = jnp.zeros((n_groups, n_groups))
+
+    for i, lower_i in enumerate(AGE_STRATA):
+        upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
+
+        for j, lower_j in enumerate(AGE_STRATA[: i + 1]):
+            upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
+
+            # Sum the block from the full matrix
+            block_value = jnp.sum(full_mat[lower_i:upper_i, lower_j:upper_j])
+            s_matrix = s_matrix.at[i, j].set(block_value)
+            s_matrix = s_matrix.at[j, i].set(block_value)
+
+    return s_matrix
 
 
 def build_s_matrix(
@@ -88,10 +111,10 @@ def build_s_matrix(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
-    """Construct the symmetric s_matrix matrix,
-    i.e. the per capita, per capita
-    matrix that could be used for a density-dependent
-    transmission model.
+    """Construct the symmetric s_matrix matrix.
+
+    Computes transmission kernels at single-age resolution and aggregates
+    results to group level for efficiency and clarity.
 
     Args:
         weights: Within age brackets weight by age group and year
@@ -104,44 +127,19 @@ def build_s_matrix(
         pc_strength: Scaling parameter for the strength of parent-child contacts
 
     Returns:
-        The s_matrix matrix
+        The s_matrix matrix (n_groups x n_groups)
     """
-    n_groups = len(AGE_STRATA)
-    s_matrix = jnp.zeros((n_groups, n_groups))
     year_idx = get_year_index(weight_ends, time)
     current_weights = weights[year_idx, :]
 
-    for i, lower_i in enumerate(AGE_STRATA):
-        upper_i = MAX_AGE + 1 if lower_i == AGE_STRATA[-1] else AGE_STRATA[i + 1]
-        ages_i = jnp.arange(lower_i, upper_i)
-        weights_i = current_weights[lower_i:upper_i]
+    # Compute full single-age transmission matrix
+    full_mat = build_full_s_matrix_single_age(
+        current_weights, fert, fert_ends, time, bg_mixing, a_spread, pc_strength
+    )
 
-        for j, lower_j in enumerate(
-            AGE_STRATA[: i + 1]
-        ):  # compute for lower triangular and diagonal
-            upper_j = MAX_AGE + 1 if lower_j == AGE_STRATA[-1] else AGE_STRATA[j + 1]
-            ages_j = jnp.arange(lower_j, upper_j)
-            weights_j = current_weights[lower_j:upper_j]
+    # Aggregate to group level
+    s_matrix = aggregate_full_matrix_to_groups(full_mat)
 
-            weight_prod = jnp.outer(weights_i, weights_j)
-
-            assort_component = get_assortative_component(
-                ages_i, ages_j, a_spread, weight_prod
-            )
-
-            child_parent_component = get_child_parent_component(
-                ages_i,
-                ages_j,
-                fert,
-                fert_ends,
-                weight_prod,
-                time,
-                pc_strength,
-            )
-
-            value = bg_mixing + assort_component + child_parent_component
-            s_matrix = s_matrix.at[i, j].set(value)
-            s_matrix = s_matrix.at[j, i].set(value)
     return s_matrix
 
 
