@@ -9,8 +9,10 @@ from summer3.epi import (
     CompartmentMap,
     Stratification,
 )
-from summer3.graph import defer, CompartmentValues, Parameter, Time
-from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA, INF_STRATA
+from summer3.graph import defer, Parameter, Time, CompartmentValues
+from summer3.epi import CategoryData, ManagedArray, CategoryGroup, StratSpec
+from summer3.arrayops import mul_ma_catdata
+from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA, INF_STRATA, INFECT_COMPS
 from tb_macro.utils import get_triang_vals, tanh_based_scaleup
 
 ModelSpec = namedtuple(
@@ -118,34 +120,93 @@ def add_natural_history(
     epi_model.add_flow(self_recovery)
 
 
-def add_health_system_flows(
-    epi_model: CompartmentalEpiModel,
-    disease_state: Stratification,
-    clin_strat: Stratification,
-    infect_strat: Stratification,
+def infect_process(
+    compartment_values: ManagedArray,
+    age_cats: CategoryGroup,
+    infectious_compartments: StratSpec,
+    infectivity_cats: CategoryGroup,
+    clinical_cats: CategoryGroup,
+    contact_rate: float,
+    freq_dens_exponent: float,
+    age_breaks: jnp.array,
+    young_end_age: int,
+    young_suscept: float,
+    rel_infect_lowinf: float,
+    rel_infect_subclin: float,
+    mm_function: callable,
+    a_spread: float,
+    bg_mixing: float,
+    pc_strength: float,
+    weights: jnp.array,
+    weight_ends: jnp.array,
+    pops: jnp.array,
+    pop_ends: jnp.array,
+    fert: jnp.array,
+    fert_ends: jnp.array,
+    time: float,
 ):
-    """Add the health system-related flows to the epidemiological model.
+    """Compute the age-specific force of infection.
+    Uses compartment values, age structure, mixing and clinical/infectiousness
+    modifiers to compute age-stratified force of infection.
 
     Args:
-        epi_model: The epidemiological model to add the flows to
-        disease_state: The compartmental stratification object
-        clin_strat: The clinical stratification object
-        infect_strat: The infectiousness stratification object
+        compartment_values: Model compartment values across stratifications
+        age_cats: Age category group for infectors and infectees
+        infectious_compartments: Active disease compartments that contribute to FoI
+        infectivity_cats: Category group for infectiousness strata
+        clinical_cats: Category group for clinical strata
+        contact_rate: Base contact rate multiplier
+        freq_dens_exponent: Frequency/density-dependence exponent
+        age_breaks: Age values used to determine young-age stratification
+        young_end_age: Maximum age to receive reduced susceptibility
+        young_suscept: Susceptibility multiplier for younger ages
+        rel_infectiousness_lowinf: Relative infectiousness for low-infectious cases
+        rel_infectiousness_subclin: Relative infectiousness for subclinical cases
+        mm_function: Function that builds a mixing matrix at a given time
+        a_spread: Assortative mixing spread parameter
+        bg_mixing: Background mixing level
+        pc_strength: Parent-child contact strength
+        weights: Within-age-group weight matrix
+        weight_ends: Start/end indices for weight data
+        pops: Population counts by age and time
+        pop_ends: Start/end indices for population data
+        fert: Fertility data
+        fert_ends: Start/end indices for fertility data
+        time: Model time at which to compute mixing
+
+    Returns:
+        CategoryData containing the age-stratified force of infection.
     """
-    treat_recover = TransitionFlow(
-        "treatment_recovery",
-        disease_state["treatment"],
-        disease_state["recovered"],
-        Parameter("treatment_recovery", 0.0),
+    infectee_cats = age_cats
+    infect_pop_cats = age_cats.product(infectious_compartments)
+
+    age_infect = jnp.where(age_breaks < young_end_age, 0.0, 1.0)
+    age_suscept = jnp.where(age_breaks < young_end_age, young_suscept, 1.0)
+
+    infectivity_modifier = infectivity_cats.wrap(jnp.array([rel_infect_lowinf, 1.0]))
+    effective_values = mul_ma_catdata(compartment_values, infectivity_modifier)
+
+    clin_modifier = clinical_cats.wrap(jnp.array([rel_infect_subclin, 1.0]))
+    effective_values = mul_ma_catdata(effective_values, clin_modifier)
+
+    ipops = effective_values.sumcats(infect_pop_cats).data
+    total_pop = compartment_values.sumcats(age_cats).data
+
+    inf_pressure = contact_rate * age_infect * ipops / total_pop**freq_dens_exponent
+    mixing_matrix = mm_function(
+        weights,
+        weight_ends,
+        pops,
+        pop_ends,
+        fert,
+        fert_ends,
+        time,
+        bg_mixing,
+        a_spread,
+        pc_strength,
     )
-    treat_relapse = TransitionFlow(
-        "treatment_relapse",
-        disease_state["treatment"],
-        (clin_strat["subclin"], infect_strat["low"]),
-        Parameter("treatment_relapse", 0.0),
-    )
-    epi_model.add_flow(treat_recover)
-    epi_model.add_flow(treat_relapse)
+    age_foi = age_suscept * (mixing_matrix @ inf_pressure)
+    return CategoryData(infectee_cats, age_foi)
 
 
 def add_seeding(

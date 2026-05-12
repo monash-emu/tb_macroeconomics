@@ -1,11 +1,46 @@
 from jax import numpy as jnp
 import pandas as pd
 
-from summer3.epi import TransitionFlow, CompartmentalModelODE, Stratification
+from summer3.epi import (
+    TransitionFlow,
+    CompartmentalModelODE,
+    Stratification,
+    CompartmentalEpiModel,
+)
 from summer3.graph import defer, Time, Parameter
 
 from tb_macro.demography import make_death_func
 from tb_macro.constants import AGE_STRATA
+
+
+def add_health_system_flows(
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    clin_strat: Stratification,
+    infect_strat: Stratification,
+):
+    """Add the health system-related flows to the epidemiological model.
+
+    Args:
+        epi_model: The epidemiological model to add the flows to
+        disease_state: The compartmental stratification object
+        clin_strat: The clinical stratification object
+        infect_strat: The infectiousness stratification object
+    """
+    treat_recover = TransitionFlow(
+        "treatment_recovery",
+        disease_state["treatment"],
+        disease_state["recovered"],
+        Parameter("treatment_recovery", 0.0),
+    )
+    treat_relapse = TransitionFlow(
+        "treatment_relapse",
+        disease_state["treatment"],
+        (clin_strat["subclin"], infect_strat["low"]),
+        Parameter("treatment_relapse", 0.0),
+    )
+    epi_model.add_flow(treat_recover)
+    epi_model.add_flow(treat_relapse)
 
 
 def get_rx_outcome_rate(
@@ -18,13 +53,13 @@ def get_rx_outcome_rate(
     start_time: float,
     outcome: str,
 ) -> float:
-    """Get the treatment outcome rate for 
+    """Get the treatment outcome rate for
     relapse, treatment-related death or success.
 
     Args:
         rx_duration: Treatment duration
         tsr: Treatment success "rate" (a proportion)
-        prop_neg_rx_death: Proportion of unsuccessful treatment outcomes 
+        prop_neg_rx_death: Proportion of unsuccessful treatment outcomes
             resulting in death
         time: Model time
         death_times: The per capita death rates
@@ -40,7 +75,9 @@ def get_rx_outcome_rate(
 
     prop_natural_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rates)
     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
-    prop_death_from_rx = jnp.maximum(req_prop_death_on_rx - prop_natural_death_on_rx, 0.0)
+    prop_death_from_rx = jnp.maximum(
+        req_prop_death_on_rx - prop_natural_death_on_rx, 0.0
+    )
     prop_total_death = prop_death_from_rx + prop_natural_death_on_rx
 
     relapse_prop = jnp.maximum(1.0 - tsr - prop_total_death, 0.0)
@@ -52,7 +89,7 @@ def get_rx_outcome_rate(
         return prop_death_from_rx / rx_duration
     elif outcome == "success":
         return success / rx_duration
-    
+
 
 def add_treatment_flows(
     death_rates: pd.DataFrame,
@@ -77,7 +114,11 @@ def add_treatment_flows(
     for age in AGE_STRATA:
         rx_source = (disease_state["treatment"], age_strat[str(age)])
         rx_dests = {
-            "relapse": (clin_strat["subclin"], infect_strat["low"], age_strat[str(age)]),
+            "relapse": (
+                clin_strat["subclin"],
+                infect_strat["low"],
+                age_strat[str(age)],
+            ),
             "rx_death": (disease_state["mtb_naive"], age_strat["0"]),
             "success": (disease_state["recovered"], age_strat[str(age)]),
         }
@@ -87,15 +128,14 @@ def add_treatment_flows(
                 rx_source,
                 rx_dests[outcome],
                 defer(get_rx_outcome_rate)(
-                    Parameter("rx_duration", 0.0), 
-                    Parameter("tsr", 0.0), 
-                    Parameter("prop_neg_rx_death", 0.0), 
-                    Time, 
-                    death_rates.index.to_numpy(dtype=float), 
-                    death_rates[age].to_numpy(dtype=float), 
+                    Parameter("rx_duration", 0.0),
+                    Parameter("tsr", 0.0),
+                    Parameter("prop_neg_rx_death", 0.0),
+                    Time,
+                    death_rates.index.to_numpy(dtype=float),
+                    death_rates[age].to_numpy(dtype=float),
                     start_time,
                     outcome,
                 ),
             )
             epi_model.add_flow(outcome_flow)
-            
