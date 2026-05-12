@@ -225,7 +225,7 @@ def get_fertility_data(
     """
     filename = f"un_fertility_20260506T0219Z.csv"
     raw_data = pd.read_csv(DATA_PATH / "population" / filename)
-    country_data = raw_data.loc[raw_data["ISO3_code"] == "KIR"]
+    country_data = raw_data.loc[raw_data["ISO3_code"] == iso3]
     data = country_data.pivot(index="Time", columns="AgeGrp", values="ASFR")
     norm_data = data.div(data.sum(axis=1), axis=0)
     norm_data.columns = norm_data.columns.astype(int)
