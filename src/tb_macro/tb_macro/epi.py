@@ -134,17 +134,7 @@ def infect_process(
     young_suscept: float,
     rel_infect_lowinf: float,
     rel_infect_subclin: float,
-    mm_function: callable,
-    a_spread: float,
-    bg_mixing: float,
-    pc_strength: float,
-    weights: jnp.array,
-    weight_ends: jnp.array,
-    pops: jnp.array,
-    pop_ends: jnp.array,
-    fert: jnp.array,
-    fert_ends: jnp.array,
-    time: float,
+    mm_dynamic,
 ):
     """Compute the age-specific force of infection.
     Uses compartment values, age structure, mixing and clinical/infectiousness
@@ -194,19 +184,7 @@ def infect_process(
     total_pop = compartment_values.sumcats(age_cats).data
 
     inf_pressure = contact_rate * age_infect * ipops / total_pop**freq_dens_exponent
-    mixing_matrix = mm_function(
-        weights,
-        weight_ends,
-        pops,
-        pop_ends,
-        fert,
-        fert_ends,
-        time,
-        bg_mixing,
-        a_spread,
-        pc_strength,
-    )
-    age_foi = age_suscept * (mixing_matrix @ inf_pressure)
+    age_foi = age_suscept * (mm_dynamic @ inf_pressure)
     return CategoryData(infectee_cats, age_foi)
 
 
@@ -237,32 +215,36 @@ def add_infection_flows(
         fert_padded: The fertility data for the mixing matrix
         young_end_age: The maximum age to receive reduced susceptibility
     """
+    dynamic_mm = defer(get_norm_c_matrix)(
+        jnp.array(age_weights), 
+        jnp.array(age_weights.index[[0, -1]]),
+        jnp.array(group_popsize),
+        jnp.array(group_popsize.index[[0, -1]]),
+        jnp.array(fert_padded),
+        jnp.array(fert_padded.index[[0, -1]]),
+        Time,
+        Parameter("bg_mixing", 0.0),
+        Parameter("a_spread", 0.0),
+        Parameter("pc_strength", 0.0),
+    )
     for comp in INFECT_COMPS:
         suscept_comp = "cleared" if comp in ["cleared", "recovered"] else comp
+        rel_sus = Parameter(f"rel_sus_{suscept_comp}", 0.0)
+        scaled_contact_rate = Parameter("contact_rate", 0.0) * rel_sus
         reinfect_foi = defer(infect_process)(
             CompartmentValues,
             age_strat.categories(),
             disease_state["active"],
             infect_strat.categories(),
             clin_strat.categories(),
-            Parameter("contact_rate", 0.0) * Parameter(f"rel_sus_{suscept_comp}", 0.0),
+            scaled_contact_rate,
             Parameter("freq_dens_exponent", 1.0),
             jnp.array(AGE_STRATA),
             young_end_age,
             Parameter("young_suscept", 0.0),
             Parameter("rel_infectiousness_lowinf", 0.0),
             Parameter("rel_infectiousness_subclin", 0.0),
-            get_norm_c_matrix,
-            Parameter("a_spread", 0.0),
-            Parameter("bg_mixing", 0.0),
-            Parameter("pc_strength", 0.0),
-            jnp.array(age_weights),
-            jnp.array(age_weights.index[[0, -1]]),
-            jnp.array(group_popsize),
-            jnp.array(group_popsize.index[[0, -1]]),
-            jnp.array(fert_padded),
-            jnp.array(fert_padded.index[[0, -1]]),
-            Time,
+            dynamic_mm,
         )
         reinfect = TransitionFlow(
             f"infect_{comp}",
