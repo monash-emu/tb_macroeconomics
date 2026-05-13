@@ -1,4 +1,3 @@
-import pandas as pd
 from jax import numpy as jnp
 
 from tb_macro.constants import AGE_STRATA, MAX_AGE
