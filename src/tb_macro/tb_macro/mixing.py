@@ -24,7 +24,7 @@ def get_year_index(
     return (clamped_time - ends[0]).astype(jnp.int32)
 
 
-def build_full_s_matrix_single_age(
+def build_s_matrix_single_age(
     fert: jnp.array,
     fert_ends: jnp.array,
     time: float,
@@ -73,9 +73,7 @@ def build_full_s_matrix_single_age(
     child_parent_mat = pc_strength * fert[clamped_birth_years, age_gap_mat]
 
     # Combine components (weights applied later)
-    full_kernel = bg_mixing + assort_mat + child_parent_mat
-
-    return full_kernel
+    return bg_mixing + assort_mat + child_parent_mat
 
 
 def get_full_normalised_within_age_band_weights(
@@ -173,9 +171,7 @@ def build_s_matrix(
     current_weights = weights[year_idx, :]
 
     # Compute full single-age transmission kernel (unweighted)
-    full_kernel = build_full_s_matrix_single_age(
-        fert, fert_ends, time, bg_mixing, a_spread, pc_strength
-    )
+    full_kernel = build_s_matrix_single_age(fert, fert_ends, time, bg_mixing, a_spread, pc_strength)
 
     # Aggregate to group level with weighting
     return aggregate_full_matrix_to_groups(full_kernel, current_weights)
@@ -220,9 +216,8 @@ def build_c_matrix(
     """
     year_idx = get_year_index(pop_ends, time)
     pops = pops[year_idx, :]
-    return pops[None, :] * build_s_matrix(
-        weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength
-    )
+    s_mat = build_s_matrix(weights, weight_ends, fert, fert_ends, time, bg_mixing, a_spread, pc_strength)
+    return pops[None, :] * s_mat
 
 
 def get_norm_c_matrix(
