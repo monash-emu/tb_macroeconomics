@@ -32,10 +32,21 @@ def build_full_s_matrix_single_age(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
+
     """Construct the full single-age transmission kernel matrix.
 
-    Computes the unweighted transmission kernel at single-year age resolution.
-    Weights are applied later during group aggregation.
+    This function builds an unweighted contact kernel at single-year age resolution,
+    representing the per-pair intensity of interaction between individuals of
+    each pair of ages.
+
+    The kernel combines three components:
+    - Background (uniform) mixing
+    - Assortative mixing based on age similarity
+    - Parent-child mixing based on fertility-derived age gaps
+
+    Importantly, this matrix does *not* include any information about the population
+    distribution. Weighting by age structure is applied later when aggregating to
+    age groups.
 
     Args:
         fert: The fertility data (padded with zeroes)
@@ -70,12 +81,20 @@ def build_full_s_matrix_single_age(
 def get_full_normalised_within_age_band_weights(
     current_weights: jnp.array,
 ) -> jnp.array:
-    """Get a matrix of age-specific weights that contains
-    the weight values for a particular age group (rows)
-    with zeroes outside of the single ages spanned by the age group.
+    """Embed within-group age distributions into full age space.
+
+    Constructs a matrix W where each row corresponds to an age group and contains
+    the distribution of single-year ages within that group, with zeros elsewhere.
+
+    Each row therefore represents a probability distribution over ages conditional
+    on belonging to that age group (therefore summing to one).
+
+    This allows group-level interactions to be computed by projecting the full
+    single-age kernel into group space via matrix multiplication.
 
     Args:
-        current_weights: Within age brackets weight by age group and year 
+        current_weights: Array of length (MAX_AGE + 1) giving the relative population
+            weights of each single age, assumed to already be normalised within each age 
 
     Returns:
         The weight matrix
@@ -91,10 +110,20 @@ def aggregate_full_matrix_to_groups(
     full_kernel: jnp.array,
     current_weights: jnp.array,
 ) -> jnp.array:
-    """Aggregate single-age transmission kernel to group-level matrix.
+    """Aggregate a single-age transmission kernel to age-group level.
 
-    Applies weights and sums blocks of the full single-age kernel according to
-    AGE_STRATA boundaries to produce the weighted group-level transmission matrix.
+    This function combines the detailed single-age kernel with the age structure
+    of each group to produce a smaller matrix defined over age groups.
+
+    The process works by:
+    - Representing each age group as a distribution over single-year ages
+    (a row in the weight matrix)
+    - Using these distributions to take weighted averages across the full kernel
+
+    Each entry in the resulting matrix can be interpreted as:
+    the expected interaction intensity between a randomly chosen individual
+    from one age group (row) and a randomly chosen individual from another
+    age group (column), based on their underlying age distributions.
 
     Args:
         full_kernel: (MAX_AGE + 1) x (MAX_AGE + 1) unweighted kernel
@@ -117,10 +146,15 @@ def build_s_matrix(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
-    """Construct the symmetric s_matrix matrix.
+    """Construct the group-level mixing matrix S.
 
-    Computes transmission kernels at single-age resolution and aggregates
-    results to group level with appropriate weighting.
+    This function:
+    1. Retrieves the within-group age distributions for the current time
+    2. Builds the single-age interaction kernel
+    3. Aggregates to age-group level via weighted projection
+
+    The resulting matrix represents per-pair interaction intensities between
+    age groups, independent of population sizes.
 
     Args:
         weights: Within age brackets weight by age group and year
@@ -159,12 +193,15 @@ def build_c_matrix(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
-    """Get the C matrix, being the per capita
-    or frequency-dependent transmission matrix
-    from the per capita, per capita or
-    density-dependent transmission matrix.
-    Note that the [None, :] is not strictly necessary
-    but makes it clearer that this is row vector.
+    """Construct the population-scaled contact matrix C.
+
+    This rescales the per-pair interaction matrix S to account for population sizes,
+    producing a matrix C suitable for use in frequency-dependent transmission models.
+
+    Each column is multiplied by the population size of the contacting/infecting group.
+
+    This represents the total rate at which individuals in the group represented
+    by the matrix rows encounter individuals from the groups represented by the columns.
 
     Args:
         weights: Within age brackets weight by age group and year
@@ -200,8 +237,14 @@ def get_norm_c_matrix(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
-    """Get the normalised version of the per capita
-    mixing matrix created by build_c_matrix.
+    """Normalise the contact matrix by its spectral radius.
+
+    Constructs the population-scaled contact matrix and rescales it so that its
+    dominant eigenvalue (spectral radius) is equal to 1.
+
+    This is useful for calibrating transmission models, as the spectral radius of
+    the "c" matrix is directly related to the basic reproduction number under homogeneous
+    infectiousness assumptions.
 
     Args:
         weights: Within age brackets weight by age group and year
