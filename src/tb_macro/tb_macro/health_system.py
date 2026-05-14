@@ -9,7 +9,7 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Time, Parameter
 
-from tb_macro.demography import make_death_func
+from tb_macro.demography import make_interp_func
 from tb_macro.constants import AGE_STRATA
 from tb_macro.utils import tanh_based_scaleup
 
@@ -51,6 +51,8 @@ def get_rx_outcome_rate(
     death_data: jnp.array,
     start_time: float,
     outcome: str,
+    tsr_times,
+    tsr_vals,
 ) -> float:
     """Get the treatment outcome rate for
     relapse, treatment-related death or success.
@@ -69,7 +71,9 @@ def get_rx_outcome_rate(
     Returns:
         The rate value for the outcome of interest
     """
-    death_func = make_death_func(death_times, death_data, start_time)
+    tsr_func = make_interp_func(tsr_times, tsr_vals, start_time)
+    tsr = tsr_func(time)
+    death_func = make_interp_func(death_times, death_data, start_time)
     death_rates = death_func(time)
 
     prop_natural_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rates)
@@ -98,6 +102,7 @@ def add_treatment_flows(
     age_strat: Stratification,
     infect_strat: Stratification,
     clin_strat: Stratification,
+    tsr_data: pd.DataFrame,
 ):
     """Add treatment-related outcome flows to epi model.
 
@@ -110,6 +115,8 @@ def add_treatment_flows(
         infect_strat: The infectiousness stratification
         clin_strat: The clinical stratification
     """
+    tsr_times = jnp.array(tsr_data.index)
+    tsr_vals = jnp.array(tsr_data)
     for age in AGE_STRATA:
         rx_source = (disease_state["treatment"], age_strat[str(age)])
         rx_dests = {
@@ -135,6 +142,8 @@ def add_treatment_flows(
                     death_rates[age].to_numpy(dtype=float),
                     start_time,
                     outcome,
+                    tsr_times,
+                    tsr_vals,
                 ),
             )
             epi_model.add_flow(outcome_flow)

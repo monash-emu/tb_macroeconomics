@@ -9,27 +9,28 @@ from summer3.graph import defer, Time
 from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
 
 
-def make_death_func(
+def make_interp_func(
     times: np.array,
     rates: np.array,
     start_time: float,
 ) -> callable:
-    """Make the function of death rates over time
+    """Make the function of any input quantity over time
     given the data and the model's starting time.
 
     Args:
-        times: The per capita death rates
-        rates: The corresponding times for these rates
+        times: The input quantities
+        rates: The corresponding times for these values
         start_time: The model starting time as a calendar year
 
     Returns:
         The function to get the death rate for a given calendar time
     """
-    def death_func(t):
+
+    def f(t):
         model_time = t + start_time
         return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
 
-    return death_func
+    return f
 
 
 def add_replacement_deaths(
@@ -53,7 +54,7 @@ def add_replacement_deaths(
         age_death_rates = death_rates[age]
         times = age_death_rates.index.to_numpy(dtype=float)
         rates = age_death_rates.to_numpy(dtype=float)
-        death_func = make_death_func(times, rates, start_time)
+        death_func = make_interp_func(times, rates, start_time)
         for comp in ALL_COMPARTMENTS:
             replacement_deaths = TransitionFlow(
                 f"replacement_deaths_{comp}_{age}",
@@ -111,19 +112,21 @@ def prepare_pop_data_for_entries(
     non_dec_data = pop_data.cummax()
     non_dec_data[start_time] = start_pop
     non_dec_data_w_start = non_dec_data.sort_index()
-    entry_birth_rates = (non_dec_data_w_start.diff() / non_dec_data_w_start.index.diff()).dropna()
+    entry_birth_rates = (
+        non_dec_data_w_start.diff() / non_dec_data_w_start.index.diff()
+    ).dropna()
     times = jnp.array(entry_birth_rates.index)
     rates = jnp.array(entry_birth_rates)
     return times, rates
 
 
 def get_birth_rate_func(
-    start_time: float, 
+    start_time: float,
     rates: jnp.array,
     times: jnp.array,
 ) -> callable:
     """Get the birth rate function for use by the
-    model in 
+    model in
 
     Args:
         start_time: Model start time
@@ -133,10 +136,12 @@ def get_birth_rate_func(
     Returns:
         The birth rate function
     """
+
     def birth_rate_func(model_time):
         time = model_time + start_time
         idx = jnp.searchsorted(times, time)
         return rates[idx]
+
     return birth_rate_func
 
 
@@ -144,11 +149,11 @@ def add_entry_births(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
     age_strat: Stratification,
-    start_time: float, 
+    start_time: float,
     rates: jnp.array,
     times: jnp.array,
 ):
-    """Add entry births to a previously 
+    """Add entry births to a previously
     closed population model to match a target
     population size over time.
 
