@@ -247,3 +247,22 @@ def write_conmat_pop_csv(
     pops.index.name = "age"
     pops.name = "population"
     pops.to_csv(BASE_PATH / f"src/tb_macro/tb_macro/conmat/{iso3}_pop_{year}.csv")
+
+
+def get_country_tsr(
+    iso3: str,
+) -> pd.Series:
+    """Simple function to get treatment success rates in
+    new and relapse cases over time.
+
+    Args:
+        iso3: Country identifier
+
+    Returns:
+        The data
+    """
+    all_data = pd.read_csv(DATA_PATH / "who/who_outcomes_20260514T0437Z.csv")
+    country_data = all_data[all_data["iso3"] == iso3]
+    new_rel_success = country_data["newrel_succ"] / country_data["newrel_coh"]
+    new_rel_success.index = country_data["year"]
+    return new_rel_success.dropna()
