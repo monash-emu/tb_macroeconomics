@@ -26,14 +26,12 @@ def add_detection(
         disease_state: The compartmental stratification object
         clin_strat: The clinical stratification object
     """
-    tv_detection_rate = Parameter("recent_detection_rate", 0.0) * defer(
-        tanh_based_scaleup
-    )(
+    tv_detection_rate = defer(tanh_based_scaleup)(
         Time,
         Parameter("passive_detection_shape", 0.0),
         Parameter("passive_detection_inflection", 0.0),
-        Parameter("passive_detection_past_frac", 0.0),
-        1.0,
+        Parameter("passive_detection_past", 0.0),
+        Parameter("passive_detection_current", 0.0),
     )
     detect = TransitionFlow(
         "detection",
