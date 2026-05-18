@@ -44,35 +44,30 @@ def add_detection(
 
 
 def get_rx_outcome_rate(
+    outcome: str,
     rx_duration: float,
     prop_neg_rx_death: float,
-    time: float,
-    outcome: str,
     tsr: callable,
-    death_func,
+    death_rate: callable,
 ) -> float:
     """Get the treatment outcome rate for
     relapse, treatment-related death or success.
 
     Args:
+        outcome: The outcome of interest
         rx_duration: Treatment duration
         prop_neg_rx_death: Proportion of unsuccessful treatment outcomes
             resulting in death
-        time: Model time
-        outcome: The outcome of interest
         tsr: Treatment success "rate" function (returns a proportion)
+        death_rate: Death rate (age-specific)
 
     Returns:
         The rate value for the outcome of interest
     """
-    death_rates = death_func(time)
-
-    prop_natural_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rates)
+    prop_nat_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rate)
     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
-    prop_death_from_rx = jnp.maximum(
-        req_prop_death_on_rx - prop_natural_death_on_rx, 0.0
-    )
-    prop_total_death = prop_death_from_rx + prop_natural_death_on_rx
+    prop_death_from_rx = jnp.maximum(req_prop_death_on_rx - prop_nat_death_on_rx, 0.0)
+    prop_total_death = prop_death_from_rx + prop_nat_death_on_rx
 
     relapse_prop = jnp.maximum(1.0 - tsr - prop_total_death, 0.0)
     success = jnp.maximum(1.0 - relapse_prop - prop_total_death, 0.0)
@@ -113,7 +108,7 @@ def add_treatment_flows(
     for age in AGE_STRATA:
         death_times = death_rates.index.to_numpy(dtype=float)
         death_vals = death_rates[age].to_numpy(dtype=float)
-        death_func = make_interp_func(death_times, death_vals, start_time)
+        death_func = defer(make_interp_func(death_times, death_vals, start_time))(Time)
 
         rx_source = (disease_state["treatment"], age_strat[str(age)])
         rx_dests = {
@@ -131,10 +126,9 @@ def add_treatment_flows(
                 rx_source,
                 rx_dests[outcome],
                 defer(get_rx_outcome_rate)(
+                    outcome,
                     Parameter("rx_duration", 0.0),
                     Parameter("prop_neg_rx_death", 0.0),
-                    Time,
-                    outcome,
                     tsr_func,
                     death_func,
                 ),
