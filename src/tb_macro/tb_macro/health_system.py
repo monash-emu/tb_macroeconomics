@@ -12,7 +12,12 @@ from summer3.graph import defer, Time, Parameter
 
 from tb_macro.demography import make_interp_func
 from tb_macro.constants import AGE_STRATA
-from tb_macro.utils import tanh_based_scaleup, CosineMultiCurve, get_scale_data
+from tb_macro.utils import (
+    tanh_based_scaleup,
+    CosineMultiCurve,
+    get_scale_data,
+    get_cos_multicurve,
+)
 
 
 def add_detection(
@@ -43,7 +48,7 @@ def add_detection(
     epi_model.add_flow(detect)
 
 
-def get_rx_outcome_rate(
+def get_outcome_rate(
     outcome: str,
     rx_duration: float,
     prop_neg_rx_death: float,
@@ -103,34 +108,26 @@ def add_treatment_flows(
     """
     tsr_times = get_scale_data(np.array(tsr_data.index))
     tsr_vals = get_scale_data(np.array(tsr_data))
-    interp_func = CosineMultiCurve()
-    tsr_func = defer(lambda t: interp_func.get_multicurve(t, tsr_times, tsr_vals))(Time)
+    tsr_func = defer(lambda t: get_cos_multicurve(t, tsr_times, tsr_vals))(Time)
+
+    dur = Parameter("rx_duration", 0.0)
+    neg_death = Parameter("prop_neg_rx_death", 0.0)
+
     for age in AGE_STRATA:
         death_times = death_rates.index.to_numpy(dtype=float)
         death_vals = death_rates[age].to_numpy(dtype=float)
         death_func = defer(make_interp_func(death_times, death_vals, start_time))(Time)
 
-        rx_source = (disease_state["treatment"], age_strat[str(age)])
-        rx_dests = {
-            "relapse": (
-                clin_strat["subclin"],
-                infect_strat["low"],
-                age_strat[str(age)],
-            ),
-            "rx_death": (disease_state["mtb_naive"], age_strat["0"]),
-            "success": (disease_state["recovered"], age_strat[str(age)]),
-        }
-        for outcome in rx_dests:
-            outcome_flow = TransitionFlow(
-                f"{outcome}_{age}",
-                rx_source,
-                rx_dests[outcome],
-                defer(get_rx_outcome_rate)(
-                    outcome,
-                    Parameter("rx_duration", 0.0),
-                    Parameter("prop_neg_rx_death", 0.0),
-                    tsr_func,
-                    death_func,
-                ),
+        source = (disease_state["treatment"], age_strat[str(age)])
+
+        rel_dest = (clin_strat["subclin"], infect_strat["low"], age_strat[str(age)])
+        death_dest = (disease_state["mtb_naive"], age_strat["0"])
+        succ_dest = (disease_state["recovered"], age_strat[str(age)])
+        dests = {"relapse": rel_dest, "rx_death": death_dest, "success": succ_dest}
+
+        for out in dests:
+            out_rate = defer(get_outcome_rate)(
+                out, dur, neg_death, tsr_func, death_func
             )
+            outcome_flow = TransitionFlow(f"{out}_{age}", source, dests[out], out_rate)
             epi_model.add_flow(outcome_flow)

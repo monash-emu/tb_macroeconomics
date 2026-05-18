@@ -105,54 +105,35 @@ def _get_cos_curve_at_x(
     return y_data.points[idx] + (rely * y_data.ranges[idx])
 
 
-class MultiCurve:
-    """Abstract class for fitting a curve to a series of data."""
-
-    def get_multicurve(self):
-        pass
-
-    def get_description(self):
-        pass
-
-
-class CosineMultiCurve(MultiCurve):
-    """Fit a cosine-based curve to a series of data.
-    See get_description below for details.
+def get_cos_multicurve(
+    t: float,
+    x_data: InterpolatorScaleData,
+    y_data: InterpolatorScaleData,
+) -> callable:
+    """Construct a half-cosine-based multi-curve.
 
     Args:
-        MultiCurve: Abstract parent class
+        t: Model time
+        x_data: Values of independent variable
+        y_data: Values of dependent variable
+
+    Returns:
+        Curve fitting function
     """
-
-    def get_multicurve(
-        self,
-        t: float,
-        x_data: InterpolatorScaleData,
-        y_data: InterpolatorScaleData,
-    ) -> callable:
-        """Construct a half-cosine-based multi-curve.
-
-        Args:
-            t: Model time
-            x_data: Values of independent variable
-            y_data: Values of dependent variable
-
-        Returns:
-            Curve fitting function
-        """
-        # Branch on whether t is in bounds
-        bounds_state = sum(t > x_data.bounds)
-        branches = [
-            lambda _, __, ___: y_data.bounds[0],
-            _get_cos_curve_at_x,
-            lambda _, __, ___: y_data.bounds[1],
-        ]
-        return lax.switch(bounds_state, branches, t, x_data, y_data)
+    # Branch on whether t is in bounds
+    bounds_state = sum(t > x_data.bounds)
+    branches = [
+        lambda _, __, ___: y_data.bounds[0],
+        _get_cos_curve_at_x,
+        lambda _, __, ___: y_data.bounds[1],
+    ]
+    return lax.switch(bounds_state, branches, t, x_data, y_data)
 
 
 def get_scale_data(points) -> InterpolatorScaleData:
     """
     Precompute ranges (diffs) and bounds (left and right extrema) for a set of data to be used in
-    a scaling function such as that produced by build_sigmoidal_multicurve.  The onus is on the
+    a scaling function such as that produced by a piecewise multicurve function. The onus is on the
     caller of this function to ensure they are the length expected by the target callee
     """
     ranges = jnp.diff(points)
