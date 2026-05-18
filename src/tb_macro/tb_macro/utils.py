@@ -1,6 +1,10 @@
-from jax import numpy as jnp
+from jax import numpy as jnp, lax
 import jax
-from jax import lax
+from collections import namedtuple
+
+InterpolatorScaleData = namedtuple(
+    "InterpolatorScaleData", ["points", "ranges", "bounds"]
+)
 
 
 def get_triang_vals(
@@ -81,8 +85,8 @@ def binary_search_sum_ge(x: float, points: jax.Array) -> int:
 
 def _get_cos_curve_at_x(
     x: float,
-    x_data,
-    y_data,
+    x_data: InterpolatorScaleData,
+    y_data: InterpolatorScaleData,
 ) -> float:
     """Get interpolated function value using half-cosine function.
 
@@ -93,18 +97,6 @@ def _get_cos_curve_at_x(
 
     Returns:
         Interpolated value
-
-    Notes
-    -----
-    The cosine function was obtained by translating
-    and scaling a half cosine function
-    (i.e. a cosine function with support $[0, \pi]$),
-    such that it intersected the starting point
-    $(t_{{1}}, y_{{1}})$ and finishing point $(t_{{2}}, y_{{2}})$
-    with a gradient of zero at both of these points.
-    This choice of fitting approach ensured that
-    the residual transmission scaling function, its derivative
-    and its higher order derivatives are continuous.
     """
     idx = binary_search_sum_ge(x, x_data.points) - 1
     offset = x - x_data.points[idx]
@@ -134,8 +126,8 @@ class CosineMultiCurve(MultiCurve):
     def get_multicurve(
         self,
         t: float,
-        x_data,
-        y_data,
+        x_data: InterpolatorScaleData,
+        y_data: InterpolatorScaleData,
     ) -> callable:
         """Construct a half-cosine-based multi-curve.
 
@@ -155,13 +147,6 @@ class CosineMultiCurve(MultiCurve):
             lambda _, __, ___: y_data.bounds[1],
         ]
         return lax.switch(bounds_state, branches, t, x_data, y_data)
-
-
-from collections import namedtuple
-
-InterpolatorScaleData = namedtuple(
-    "InterpolatorScaleData", ["points", "ranges", "bounds"]
-)
 
 
 def get_scale_data(points) -> InterpolatorScaleData:

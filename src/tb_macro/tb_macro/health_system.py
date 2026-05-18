@@ -47,11 +47,9 @@ def get_rx_outcome_rate(
     rx_duration: float,
     prop_neg_rx_death: float,
     time: float,
-    death_times: jnp.array,
-    death_data: jnp.array,
-    start_time: float,
     outcome: str,
     tsr: callable,
+    death_func,
 ) -> float:
     """Get the treatment outcome rate for
     relapse, treatment-related death or success.
@@ -61,16 +59,12 @@ def get_rx_outcome_rate(
         prop_neg_rx_death: Proportion of unsuccessful treatment outcomes
             resulting in death
         time: Model time
-        death_times: The per capita death rates
-        death_data: The corresponding times for these rates
-        start_time: The model starting time as a calendar year
         outcome: The outcome of interest
         tsr: Treatment success "rate" function (returns a proportion)
 
     Returns:
         The rate value for the outcome of interest
     """
-    death_func = make_interp_func(death_times, death_data, start_time)
     death_rates = death_func(time)
 
     prop_natural_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rates)
@@ -117,6 +111,10 @@ def add_treatment_flows(
     interp_func = CosineMultiCurve()
     tsr_func = defer(lambda t: interp_func.get_multicurve(t, tsr_times, tsr_vals))(Time)
     for age in AGE_STRATA:
+        death_times = death_rates.index.to_numpy(dtype=float)
+        death_vals = death_rates[age].to_numpy(dtype=float)
+        death_func = make_interp_func(death_times, death_vals, start_time)
+
         rx_source = (disease_state["treatment"], age_strat[str(age)])
         rx_dests = {
             "relapse": (
@@ -136,11 +134,9 @@ def add_treatment_flows(
                     Parameter("rx_duration", 0.0),
                     Parameter("prop_neg_rx_death", 0.0),
                     Time,
-                    death_rates.index.to_numpy(dtype=float),
-                    death_rates[age].to_numpy(dtype=float),
-                    start_time,
                     outcome,
                     tsr_func,
+                    death_func,
                 ),
             )
             epi_model.add_flow(outcome_flow)
