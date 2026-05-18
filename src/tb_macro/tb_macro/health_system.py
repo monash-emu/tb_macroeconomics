@@ -1,5 +1,6 @@
 from jax import numpy as jnp
 import pandas as pd
+import numpy as np
 
 from summer3.epi import (
     TransitionFlow,
@@ -11,7 +12,7 @@ from summer3.graph import defer, Time, Parameter
 
 from tb_macro.demography import make_interp_func
 from tb_macro.constants import AGE_STRATA
-from tb_macro.utils import tanh_based_scaleup
+from tb_macro.utils import tanh_based_scaleup, CosineMultiCurve, get_scale_data
 
 
 def add_detection(
@@ -44,22 +45,19 @@ def add_detection(
 
 def get_rx_outcome_rate(
     rx_duration: float,
-    tsr: float,
     prop_neg_rx_death: float,
     time: float,
     death_times: jnp.array,
     death_data: jnp.array,
     start_time: float,
     outcome: str,
-    tsr_times,
-    tsr_vals,
+    tsr: callable,
 ) -> float:
     """Get the treatment outcome rate for
     relapse, treatment-related death or success.
 
     Args:
         rx_duration: Treatment duration
-        tsr: Treatment success "rate" (a proportion)
         prop_neg_rx_death: Proportion of unsuccessful treatment outcomes
             resulting in death
         time: Model time
@@ -67,12 +65,11 @@ def get_rx_outcome_rate(
         death_data: The corresponding times for these rates
         start_time: The model starting time as a calendar year
         outcome: The outcome of interest
+        tsr: Treatment success "rate" function (returns a proportion)
 
     Returns:
         The rate value for the outcome of interest
     """
-    tsr_func = make_interp_func(tsr_times, tsr_vals, start_time)
-    tsr = tsr_func(time)
     death_func = make_interp_func(death_times, death_data, start_time)
     death_rates = death_func(time)
 
@@ -115,8 +112,10 @@ def add_treatment_flows(
         infect_strat: The infectiousness stratification
         clin_strat: The clinical stratification
     """
-    tsr_times = jnp.array(tsr_data.index)
-    tsr_vals = jnp.array(tsr_data)
+    tsr_times = get_scale_data(np.array(tsr_data.index))
+    tsr_vals = get_scale_data(np.array(tsr_data))
+    interp_func = CosineMultiCurve()
+    tsr_func = defer(lambda t: interp_func.get_multicurve(t, tsr_times, tsr_vals))(Time)
     for age in AGE_STRATA:
         rx_source = (disease_state["treatment"], age_strat[str(age)])
         rx_dests = {
@@ -135,15 +134,13 @@ def add_treatment_flows(
                 rx_dests[outcome],
                 defer(get_rx_outcome_rate)(
                     Parameter("rx_duration", 0.0),
-                    Parameter("tsr", 0.0),
                     Parameter("prop_neg_rx_death", 0.0),
                     Time,
                     death_rates.index.to_numpy(dtype=float),
                     death_rates[age].to_numpy(dtype=float),
                     start_time,
                     outcome,
-                    tsr_times,
-                    tsr_vals,
+                    tsr_func,
                 ),
             )
             epi_model.add_flow(outcome_flow)

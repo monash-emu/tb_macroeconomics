@@ -11,7 +11,7 @@ ALL_COMPARTMENTS = [
     "recovered",
 ]
 
-# Compartments that can be reinfected
+# Compartments that can be infected/reinfected
 INFECT_COMPS = [
     "mtb_naive",
     "contained",
