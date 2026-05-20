@@ -12,12 +12,7 @@ from summer3.graph import defer, Time, Parameter
 
 from tb_macro.demography import make_interp_func
 from tb_macro.constants import AGE_STRATA
-from tb_macro.utils import (
-    tanh_based_scaleup,
-    CosineMultiCurve,
-    get_scale_data,
-    get_cos_multicurve,
-)
+from tb_macro.utils import tanh_based_scaleup, get_scale_data, get_cos_multicurve
 
 
 def add_detection(
