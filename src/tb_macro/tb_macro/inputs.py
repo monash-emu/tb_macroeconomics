@@ -266,3 +266,89 @@ def get_country_tsr(
     new_rel_success = country_data["newrel_succ"] / country_data["newrel_coh"]
     new_rel_success.index = country_data["year"]
     return new_rel_success.dropna()
+
+
+def calc_tsr_from_outcomes(
+    data: pd.DataFrame,
+) -> pd.Series:
+    """Calculate the treatment outcome proportion
+    over time from the WHO outcome data
+    for a specific country.
+
+    Args:
+        data: The WHO outcome data filtered to a country
+
+    Returns:
+        The TSR over time
+    """
+    num_cols = [
+        "new_sp_cur",
+        "new_sp_cmplt",
+        "new_snep_cmplt",
+        "ret_cur",
+        "ret_cmplt",
+        "newrel_succ",
+        "ret_nrel_succ",
+        "mdr_succ",
+    ]
+    denom_cols = [
+        "new_sp_coh",
+        "new_snep_coh",
+        "ret_coh",
+        "newrel_coh",
+        "ret_nrel_coh",
+        "mdr_coh",
+    ]
+
+    num = data[num_cols].sum(axis=1)
+    denom = data[denom_cols].sum(axis=1)
+
+    tsr = num / denom
+    tsr = tsr.where(denom > 0)
+    tsr.index = data["year"]
+    return tsr
+
+
+def calc_death_in_unsucc_outcomes(
+    data: pd.DataFrame,
+) -> pd.Series:
+    """Calculate the death proportion among
+    all unsuccessful outcomes
+    over time from the WHO outcome data
+    for a specific country.
+
+    Args:
+        data: The WHO outcome data filtered to a country
+
+    Returns:
+        The death proportion over time
+    """
+    num_cols = [
+        "new_sp_died",
+        "new_snep_died",
+        "ret_died",
+        "newrel_died",
+        "ret_nrel_died",
+        "mdr_died",
+    ]
+    unsucc_cols = [
+        "new_sp_fail",
+        "new_sp_def",
+        "new_snep_fail",
+        "new_snep_def",
+        "ret_fail",
+        "ret_def",
+        "newrel_fail",
+        "newrel_lost",
+        "ret_nrel_fail",
+        "ret_nrel_lost",
+        "mdr_fail",
+        "mdr_lost",
+    ]
+    denom_cols = num_cols + unsucc_cols
+    num = data[num_cols].sum(axis=1)
+    denom = data[denom_cols].sum(axis=1)
+    prop_death_unsucc = num / denom
+    prop_death_unsucc = prop_death_unsucc.where(denom > 0)
+    prop_death_unsucc.index = data["year"]
+    return prop_death_unsucc
