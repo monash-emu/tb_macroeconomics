@@ -113,7 +113,6 @@ def add_treatment_flows(
     )(Time)
 
     dur = Parameter("rx_duration", 0.0)
-    neg_death = Parameter("prop_neg_rx_death", 0.0)
 
     for age in AGE_STRATA:
         death_times = death_rates.index.to_numpy(dtype=float)
