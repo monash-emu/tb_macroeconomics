@@ -280,14 +280,12 @@ def calc_tsr_from_outcomes(
         "ret_nrel_coh",
         "mdr_coh",
     ]
-
     num = data[num_cols].sum(axis=1)
     denom = data[denom_cols].sum(axis=1)
-
     tsr = num / denom
     tsr = tsr.where(denom > 0)
     tsr.index = data["year"]
-    return tsr
+    return tsr.sort_index()
 
 
 def calc_death_in_unsucc_outcomes(

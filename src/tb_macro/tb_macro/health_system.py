@@ -89,6 +89,7 @@ def add_treatment_flows(
     infect_strat: Stratification,
     clin_strat: Stratification,
     tsr_data: pd.DataFrame,
+    death_in_unsucc_data: pd.DataFrame,
 ):
     """Add treatment-related outcome flows to epi model.
 
@@ -104,6 +105,12 @@ def add_treatment_flows(
     tsr_times = get_scale_data(np.array(tsr_data.index))
     tsr_vals = get_scale_data(np.array(tsr_data))
     tsr_func = defer(lambda t: get_cos_multicurve(t, tsr_times, tsr_vals))(Time)
+
+    death_unsucc_times = get_scale_data(np.array(death_in_unsucc_data.index))
+    death_unsucc_vals = get_scale_data(np.array(death_in_unsucc_data))
+    death_unsucc_func = defer(
+        lambda t: get_cos_multicurve(t, death_unsucc_times, death_unsucc_vals)
+    )(Time)
 
     dur = Parameter("rx_duration", 0.0)
     neg_death = Parameter("prop_neg_rx_death", 0.0)
@@ -122,7 +129,7 @@ def add_treatment_flows(
 
         for out in dests:
             out_rate = defer(get_outcome_rate)(
-                out, dur, neg_death, tsr_func, death_func
+                out, dur, death_unsucc_func, tsr_func, death_func
             )
             outcome_flow = TransitionFlow(f"{out}_{age}", source, dests[out], out_rate)
             epi_model.add_flow(outcome_flow)
