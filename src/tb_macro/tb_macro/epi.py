@@ -295,7 +295,7 @@ def add_latency_flows(
     """
 
     def latency_age_adj(p_0, p_5, p_15):
-        params = [p_0, p_5] + [p_15] * 6
+        params = [p_0] * 2 + [p_5] + [p_15] * 5
         return age_strat.categories().wrap(jnp.array(params))
 
 
