@@ -293,15 +293,32 @@ def add_latency_flows(
         clin_strat: The clinical stratification object
         infect_strat: The infectiousness stratification object
     """
+    
+    contain = TransitionFlow(
+        "containment",
+        (disease_state["incipient"]),
+        (disease_state["contained"]),
+        1.0,
+    )
+    epi_model.add_flow(contain)
+
+
+    def contain_age_adj(p_0, p_5, p_15):
+        params = [p_0, p_5] + [p_15] * 6
+        return age_strat.categories().wrap(jnp.array(params))
+    
+
+    epi_model.flows["containment"].adjustments.append(
+        defer(contain_age_adj)(
+            Parameter("containment_age0", 0.0),
+            Parameter("containment_age5", 0.0),
+            Parameter("containment_age15", 0.0),
+            )
+        )
+
+
     for age in AGE_STRATA:
         latency_age_cat = "age0" if age < 5 else "age5" if age < 15 else "age15"
-        contain = TransitionFlow(
-            f"containment_{age}",
-            (disease_state["incipient"], age_strat[str(age)]),
-            (disease_state["contained"], age_strat[str(age)]),
-            0.0,
-        )
-        epi_model.add_flow(contain)
         for strat in INF_STRATA:
             prop_inf = Parameter("progression_prop_infectious", 0.0)
             strat_prop = prop_inf if strat == "high" else 1.0 - prop_inf
@@ -312,14 +329,3 @@ def add_latency_flows(
                 Parameter(f"progression_{latency_age_cat}", 0.0) * strat_prop,
             )
             epi_model.add_flow(progression)
-
-    for age in AGE_STRATA:
-        latency_age_cat = "age0" if age < 5 else "age5" if age < 15 else "age15"
-        contain_param = Parameter(f"containment_{latency_age_cat}", 0.0)
-        epi_model.flows[f"containment_{age}"].adjustments.append(contain_param)
-        
-        # for strat in INF_STRATA:
-        #     prop_inf = Parameter("progression_prop_infectious", 0.0)
-        #     strat_prop = prop_inf if strat == "high" else 1.0 - prop_inf
-        #     prog_param = Parameter(f"progression_{latency_age_cat}", 0.0) * strat_prop
-        #     epi_model.flows[f"progression_{strat}_{age}"].adjustments.append(prog_param)
