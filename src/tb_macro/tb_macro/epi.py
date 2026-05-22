@@ -294,9 +294,17 @@ def add_latency_flows(
         infect_strat: The infectiousness stratification object
     """
 
+    ages = [int(a) for a in age_strat.strata]
+    idx_0 = np.array([i for i, a in enumerate(ages) if a < 5])
+    idx_5 = np.array([i for i, a in enumerate(ages) if 5 <= a < 15])
+    idx_15 = np.array([i for i, a in enumerate(ages) if a >= 15])
+
     def latency_age_adj(p_0, p_5, p_15):
-        params = [p_0] * 2 + [p_5] * 2 + [p_15] * 4
-        return age_strat.categories().wrap(jnp.array(params))
+        params = np.zeros(len(ages))
+        params = params.at[idx_0].set(p_0)
+        params = params.at[idx_5].set(p_5)
+        params = params.at[idx_15].set(p_15)
+        return age_strat.categories().wrap(params)
 
     contain = TransitionFlow(
         "containment", disease_state["incipient"], disease_state["contained"], 1.0
