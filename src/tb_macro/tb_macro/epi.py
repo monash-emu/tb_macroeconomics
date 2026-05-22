@@ -293,39 +293,36 @@ def add_latency_flows(
         clin_strat: The clinical stratification object
         infect_strat: The infectiousness stratification object
     """
-    
-    contain = TransitionFlow(
-        "containment",
-        (disease_state["incipient"]),
-        (disease_state["contained"]),
-        1.0,
-    )
-    epi_model.add_flow(contain)
 
-
-    def contain_age_adj(p_0, p_5, p_15):
+    def latency_age_adj(p_0, p_5, p_15):
         params = [p_0, p_5] + [p_15] * 6
         return age_strat.categories().wrap(jnp.array(params))
-    
 
+
+    contain = TransitionFlow("containment", disease_state["incipient"], disease_state["contained"], 1.0)
+    epi_model.add_flow(contain)
     epi_model.flows["containment"].adjustments.append(
-        defer(contain_age_adj)(
+        defer(latency_age_adj)(
             Parameter("containment_age0", 0.0),
             Parameter("containment_age5", 0.0),
             Parameter("containment_age15", 0.0),
             )
         )
 
-
-    for age in AGE_STRATA:
-        latency_age_cat = "age0" if age < 5 else "age5" if age < 15 else "age15"
-        for strat in INF_STRATA:
-            prop_inf = Parameter("progression_prop_infectious", 0.0)
-            strat_prop = prop_inf if strat == "high" else 1.0 - prop_inf
-            progression = TransitionFlow(
-                f"progression_{strat}_{age}",
-                (disease_state["incipient"], age_strat[str(age)]),
-                (clin_strat["subclin"], infect_strat[strat], age_strat[str(age)]),
-                Parameter(f"progression_{latency_age_cat}", 0.0) * strat_prop,
+    for strat in INF_STRATA:
+        prop_inf = Parameter("progression_prop_infectious", 0.0)
+        strat_prop = prop_inf if strat == "high" else 1.0 - prop_inf
+        progression = TransitionFlow(
+            f"progression_{strat}",
+            disease_state["incipient"],
+            (clin_strat["subclin"], infect_strat[strat]),
+            strat_prop,
+        )
+        epi_model.add_flow(progression)
+        epi_model.flows[f"progression_{strat}"].adjustments.append(
+            defer(latency_age_adj)(
+                Parameter("progression_age0", 0.0),
+                Parameter("progression_age5", 0.0),
+                Parameter("progression_age15", 0.0),
             )
-            epi_model.add_flow(progression)
+        )
