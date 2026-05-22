@@ -216,7 +216,7 @@ def add_infection_flows(
         young_end_age: The maximum age to receive reduced susceptibility
     """
     dynamic_mm = defer(get_norm_c_matrix)(
-        jnp.array(age_weights), 
+        jnp.array(age_weights),
         jnp.array(age_weights.index[[0, -1]]),
         jnp.array(group_popsize),
         jnp.array(group_popsize.index[[0, -1]]),
@@ -295,19 +295,20 @@ def add_latency_flows(
     """
 
     def latency_age_adj(p_0, p_5, p_15):
-        params = [p_0] * 2 + [p_5] + [p_15] * 5
+        params = [p_0] * 2 + [p_5] * 2 + [p_15] * 4
         return age_strat.categories().wrap(jnp.array(params))
 
-
-    contain = TransitionFlow("containment", disease_state["incipient"], disease_state["contained"], 1.0)
+    contain = TransitionFlow(
+        "containment", disease_state["incipient"], disease_state["contained"], 1.0
+    )
     epi_model.add_flow(contain)
     epi_model.flows["containment"].adjustments.append(
         defer(latency_age_adj)(
             Parameter("containment_age0", 0.0),
             Parameter("containment_age5", 0.0),
             Parameter("containment_age15", 0.0),
-            )
         )
+    )
 
     for strat in INF_STRATA:
         prop_inf = Parameter("progression_prop_infectious", 0.0)
