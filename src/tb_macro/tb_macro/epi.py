@@ -318,23 +318,25 @@ def add_latency_flows(
         )
     )
 
-    for inf_strat in infect_strat.strata:
-        rate = (
-            1.0 - Parameter("progression_prop_infectious", 0.0)
-            if inf_strat == "low"
-            else Parameter("progression_prop_infectious", 0.0)
+    def inf_prog_adj(p_noninf, p_inf):
+        params = jnp.zeros(2)
+        params = params.at[0].set(p_noninf)
+        params = params.at[1].set(p_inf)
+        return infect_strat.categories().wrap(params)
+
+
+    prog = TransitionFlow("progression", disease_state["incipient"], clin_strat["subclin"], 1.0)
+    epi_model.add_flow(prog)
+    epi_model.flows["progression"].adjustments.append(
+        defer(latency_age_adj)(
+            Parameter("progression_age0", 0.0),
+            Parameter("progression_age5", 0.0),
+            Parameter("progression_age15", 0.0),
         )
-        prog = TransitionFlow(
-            f"progression_{inf_strat}",
-            disease_state["incipient"],
-            clin_strat["subclin"],
-            rate,
+    )
+    epi_model.flows["progression"].adjustments.append(
+        defer(inf_prog_adj)(
+            1.0 - Parameter("progression_prop_infectious", 0.0),
+            Parameter("progression_prop_infectious", 0.0),
         )
-        epi_model.add_flow(prog)
-        epi_model.flows[f"progression_{inf_strat}"].adjustments.append(
-            defer(latency_age_adj)(
-                Parameter("progression_age0", 0.0),
-                Parameter("progression_age5", 0.0),
-                Parameter("progression_age15", 0.0),
-            )
-        )
+    )
