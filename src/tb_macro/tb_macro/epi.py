@@ -277,6 +277,28 @@ def add_seeding(
     epi_model.add_flow(seed_flow)
 
 
+def get_latency_age_adj(
+    age_strat: Stratification,
+) -> callable:
+    """Get the function to adjust age groups according to
+    our standard latency bands: <5, 5 to <15 and 15+.
+
+    Args:
+        age_strat: The age stratification object
+
+    Returns:
+        The age latency adjustment function
+    """
+    idx_0 = [a for a in age_strat.strata if int(a) < 5]
+    idx_5 = [a for a in age_strat.strata if 5 <= int(a) < 15]
+    idx_15 = [a for a in age_strat.strata if 15 <= int(a)]
+    latency_cats = CategoryGroup([Category(age_strat[s]) for s in [idx_0, idx_5, idx_15]])
+
+    def latency_age_adj(p_0, p_5, p_15):
+        return latency_cats.wrap(jnp.array([p_0, p_5, p_15]))
+    return latency_age_adj
+
+
 def add_latency_flows(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
@@ -293,16 +315,7 @@ def add_latency_flows(
         clin_strat: The clinical stratification object
         infect_strat: The infectiousness stratification object
     """
-
-    latency_cats = CategoryGroup(
-        [
-            Category(age_strat[s])
-            for s in [("0", "3"), ("5", "10"), age_strat.strata[4:]]
-        ]
-    )
-
-    def latency_age_adj(p_0, p_5, p_15):
-        return latency_cats.wrap(jnp.array([p_0, p_5, p_15]))
+    latency_age_adj = get_latency_age_adj(age_strat)
 
     contain_func = defer(latency_age_adj)(
         Parameter("containment_age0", 0.0),
