@@ -50,11 +50,14 @@ def add_replacement_deaths(
         death_rates: The per capita death rates
         start_time: Model start time
     """
+
     def make_interp_func(times, rates, start_time, age_strat):
 
         def interp_one_age(t, age_rates):
             model_time = t + start_time
-            return jnp.interp(model_time, times, age_rates, left=age_rates[0], right=age_rates[-1])
+            return jnp.interp(
+                model_time, times, age_rates, left=age_rates[0], right=age_rates[-1]
+            )
 
         interp_all_ages = vmap(interp_one_age, in_axes=(None, 1))
         return lambda t: age_strat.categories().wrap(interp_all_ages(t, rates))
@@ -63,19 +66,14 @@ def add_replacement_deaths(
     rates = death_rates.to_numpy()
     death_func = make_interp_func(times, rates, start_time, age_strat)
 
-    for comp in ALL_COMPARTMENTS:
-        for a, age in enumerate(age_strat.strata):
+    replacement_deaths = TransitionFlow(
+        "replacement_deaths",
+        (disease_state[disease_state.strata], age_strat[age_strat.strata]),
+        (disease_state["mtb_naive"], age_strat["0"]),
+        defer(death_func)(Time),
+    )
 
-            def scalar_death(t, i=a):
-                return death_func(t).data[i]
-
-            replacement_deaths = TransitionFlow(
-                f"replacement_deaths_{comp}_{age}",
-                (disease_state[str(comp)], age_strat[str(age)]),
-                (disease_state["mtb_naive"], age_strat["0"]),
-                defer(scalar_death)(Time),
-            )
-            epi_model.add_flow(replacement_deaths)
+    epi_model.add_flow(replacement_deaths)
 
 
 def add_ageing_flows(
