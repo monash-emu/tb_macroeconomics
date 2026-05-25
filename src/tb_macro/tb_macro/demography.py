@@ -42,7 +42,6 @@ def make_multi_interp_func(
     return lambda t: age_strat.categories().wrap(base_func(t))
 
 
-
 def add_replacement_deaths(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,

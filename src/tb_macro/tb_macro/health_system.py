@@ -12,6 +12,7 @@ from summer3.graph import defer, Time, Parameter
 
 from tb_macro.constants import AGE_STRATA
 from tb_macro.utils import tanh_based_scaleup, get_scale_data, get_cos_multicurve
+from tb_macro.demography import make_multi_interp_array_func
 
 
 def add_detection(
@@ -79,30 +80,6 @@ def get_outcome_rate(
         return success / rx_duration
 
 
-def make_interp_func(
-    times: np.array,
-    rates: np.array,
-    start_time: float,
-) -> callable:
-    """Make the function of any input quantity over time
-    given the data and the model's starting time.
-
-    Args:
-        times: The input quantities
-        rates: The corresponding times for these values
-        start_time: The model starting time as a calendar year
-
-    Returns:
-        The function to get the death rate for a given calendar time
-    """
-
-    def f(t):
-        model_time = t + start_time
-        return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
-
-    return f
-
-
 def add_treatment_flows(
     death_rates: pd.DataFrame,
     start_time: float,
@@ -137,11 +114,14 @@ def add_treatment_flows(
 
     dur = Parameter("rx_duration", 0.0)
 
-    for age in AGE_STRATA:
-        death_times = death_rates.index.to_numpy(dtype=float)
-        death_vals = death_rates[age].to_numpy(dtype=float)
-        death_func = defer(make_interp_func(death_times, death_vals, start_time))(Time)
+    death_array_func = make_multi_interp_array_func(
+        death_rates.index.to_numpy(dtype=float),
+        death_rates.to_numpy(dtype=float),
+        start_time,
+    )
 
+    for a, age in enumerate(AGE_STRATA):
+        death_func = defer(lambda t, i=a: death_array_func(t)[i])(Time)
         source = (disease_state["treatment"], age_strat[str(age)])
 
         rel_dest = (clin_strat["subclin"], infect_strat["low"], age_strat[str(age)])
