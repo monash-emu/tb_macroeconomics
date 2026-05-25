@@ -10,7 +10,7 @@ from summer3.epi import (
     Stratification,
 )
 from summer3.graph import defer, Parameter, Time, CompartmentValues
-from summer3.epi import CategoryData, ManagedArray, CategoryGroup, StratSpec
+from summer3.epi import Category, CategoryData, ManagedArray, CategoryGroup, StratSpec
 from summer3.arrayops import mul_ma_catdata
 from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA, INF_STRATA, INFECT_COMPS
 from tb_macro.utils import get_triang_vals
@@ -294,49 +294,48 @@ def add_latency_flows(
         infect_strat: The infectiousness stratification object
     """
 
-    ages = [int(a) for a in age_strat.strata]
-    idx_0 = np.array([i for i, a in enumerate(ages) if a < 5])
-    idx_5 = np.array([i for i, a in enumerate(ages) if 5 <= a < 15])
-    idx_15 = np.array([i for i, a in enumerate(ages) if a >= 15])
+    latency_cats = CategoryGroup(
+        [
+            Category(age_strat[s])
+            for s in [("0", "3"), ("5", "10"), age_strat.strata[4:]]
+        ]
+    )
 
     def latency_age_adj(p_0, p_5, p_15):
-        params = jnp.zeros(len(ages))
-        params = params.at[idx_0].set(p_0)
-        params = params.at[idx_5].set(p_5)
-        params = params.at[idx_15].set(p_15)
-        return age_strat.categories().wrap(params)
+        return latency_cats.wrap(jnp.array([p_0, p_5, p_15]))
+
+    containment_f = defer(latency_age_adj)(
+        Parameter("containment_age0", 0.0),
+        Parameter("containment_age5", 0.0),
+        Parameter("containment_age15", 0.0),
+    )
 
     contain = TransitionFlow(
-        "containment", disease_state["incipient"], disease_state["contained"], 1.0
+        "containment",
+        disease_state["incipient"],
+        disease_state["contained"],
+        containment_f,
     )
     epi_model.add_flow(contain)
-    epi_model.flows["containment"].adjustments.append(
-        defer(latency_age_adj)(
-            Parameter("containment_age0", 0.0),
-            Parameter("containment_age5", 0.0),
-            Parameter("containment_age15", 0.0),
-        )
+
+    prog_f = defer(latency_age_adj)(
+        Parameter("progression_age0", 0.0),
+        Parameter("progression_age5", 0.0),
+        Parameter("progression_age15", 0.0),
     )
 
-    def inf_prog_adj(p_noninf, p_inf):
-        params = jnp.zeros(2)
-        params = params.at[0].set(p_noninf)
-        params = params.at[1].set(p_inf)
-        return infect_strat.categories().wrap(params)
-
-
-    prog = TransitionFlow("progression", disease_state["incipient"], clin_strat["subclin"], 1.0)
-    epi_model.add_flow(prog)
-    epi_model.flows["progression"].adjustments.append(
-        defer(latency_age_adj)(
-            Parameter("progression_age0", 0.0),
-            Parameter("progression_age5", 0.0),
-            Parameter("progression_age15", 0.0),
-        )
+    prog = TransitionFlow(
+        "progression", disease_state["incipient"], clin_strat["subclin"], prog_f
     )
-    epi_model.flows["progression"].adjustments.append(
+
+    def inf_prog_adj(p_noninf, p_inf) -> CategoryData:
+        return infect_strat.categories().wrap(jnp.array([p_noninf, p_inf]))
+
+    prog.adjustments.append(
         defer(inf_prog_adj)(
             1.0 - Parameter("progression_prop_infectious", 0.0),
             Parameter("progression_prop_infectious", 0.0),
         )
     )
+
+    epi_model.add_flow(prog)
