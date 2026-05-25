@@ -6,31 +6,36 @@ from jax import numpy as jnp, vmap
 from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow, EntryFlow
 from summer3.graph import defer, Time
 
-from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA
+from tb_macro.constants import AGE_STRATA
 
 
-def make_interp_func(
+def make_multi_interp_func(
     times: np.array,
     rates: np.array,
     start_time: float,
+    age_strat: Stratification
 ) -> callable:
-    """Make the function of any input quantity over time
-    given the data and the model's starting time.
+    """Create a function that can return a vector of values
+    pertaining to each modelled age group given some input data
+    structured by time and by age group.
 
     Args:
-        times: The input quantities
-        rates: The corresponding times for these values
-        start_time: The model starting time as a calendar year
+        times: Time values to use for interpolation
+        rates: Rate values to interpolate, repated for each age group
+        start_time: Model start time
+        age_strat: The age stratification object
 
     Returns:
-        The function to get the death rate for a given calendar time
+        The function to return a vector of values for each age group at a given time
     """
-
-    def f(t):
+    def interp_single_age(t, age_rates):
         model_time = t + start_time
-        return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
+        left_val = age_rates[0]
+        right_val = age_rates[-1]
+        return jnp.interp(model_time, times, age_rates, left=left_val, right=right_val)
 
-    return f
+    interp_all_ages = vmap(interp_single_age, in_axes=(None, 1)) # No axis for time, columns for age
+    return lambda t: age_strat.categories().wrap(interp_all_ages(t, rates))
 
 
 def add_replacement_deaths(
@@ -50,29 +55,18 @@ def add_replacement_deaths(
         death_rates: The per capita death rates
         start_time: Model start time
     """
-
-    def make_interp_func(times, rates, start_time, age_strat):
-
-        def interp_one_age(t, age_rates):
-            model_time = t + start_time
-            return jnp.interp(
-                model_time, times, age_rates, left=age_rates[0], right=age_rates[-1]
-            )
-
-        interp_all_ages = vmap(interp_one_age, in_axes=(None, 1))
-        return lambda t: age_strat.categories().wrap(interp_all_ages(t, rates))
-
-    times = death_rates.index.to_numpy()
-    rates = death_rates.to_numpy()
-    death_func = make_interp_func(times, rates, start_time, age_strat)
-
+    death_func = make_multi_interp_func(
+        death_rates.index.to_numpy(),
+        death_rates.to_numpy(),
+        start_time,
+        age_strat,
+    )
     replacement_deaths = TransitionFlow(
         "replacement_deaths",
         (disease_state[disease_state.strata], age_strat[age_strat.strata]),
         (disease_state["mtb_naive"], age_strat["0"]),
         defer(death_func)(Time),
     )
-
     epi_model.add_flow(replacement_deaths)
 
 

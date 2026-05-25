@@ -10,7 +10,6 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Time, Parameter
 
-from tb_macro.demography import make_interp_func
 from tb_macro.constants import AGE_STRATA
 from tb_macro.utils import tanh_based_scaleup, get_scale_data, get_cos_multicurve
 
@@ -78,6 +77,30 @@ def get_outcome_rate(
         return prop_death_from_rx / rx_duration
     elif outcome == "success":
         return success / rx_duration
+
+
+def make_interp_func(
+    times: np.array,
+    rates: np.array,
+    start_time: float,
+) -> callable:
+    """Make the function of any input quantity over time
+    given the data and the model's starting time.
+
+    Args:
+        times: The input quantities
+        rates: The corresponding times for these values
+        start_time: The model starting time as a calendar year
+
+    Returns:
+        The function to get the death rate for a given calendar time
+    """
+
+    def f(t):
+        model_time = t + start_time
+        return jnp.interp(model_time, times, rates, left=rates[0], right=rates[-1])
+
+    return f
 
 
 def add_treatment_flows(
