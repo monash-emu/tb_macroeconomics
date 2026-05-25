@@ -9,6 +9,16 @@ from summer3.graph import defer, Time
 from tb_macro.constants import AGE_STRATA
 
 
+def make_multi_interp_array_func(times, rates, start_time):
+
+    def interp_single_age(t, age_rates):
+        model_time = t + start_time
+        return jnp.interp(model_time, times, age_rates, left=age_rates[0], right=age_rates[-1])
+
+    interp_all_ages = vmap(interp_single_age, in_axes=(None, 1)) # No axis for time, columns for age
+    return lambda t: interp_all_ages(t, rates)
+
+
 def make_multi_interp_func(
     times: np.array,
     rates: np.array,
@@ -28,14 +38,9 @@ def make_multi_interp_func(
     Returns:
         The function to return a vector of values for each age group at a given time
     """
-    def interp_single_age(t, age_rates):
-        model_time = t + start_time
-        left_val = age_rates[0]
-        right_val = age_rates[-1]
-        return jnp.interp(model_time, times, age_rates, left=left_val, right=right_val)
+    base_func = make_multi_interp_array_func(times, rates, start_time)
+    return lambda t: age_strat.categories().wrap(base_func(t))
 
-    interp_all_ages = vmap(interp_single_age, in_axes=(None, 1)) # No axis for time, columns for age
-    return lambda t: age_strat.categories().wrap(interp_all_ages(t, rates))
 
 
 def add_replacement_deaths(
