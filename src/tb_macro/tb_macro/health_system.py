@@ -1,3 +1,4 @@
+from typing import Tuple
 from jax import numpy as jnp
 import pandas as pd
 import numpy as np
@@ -43,64 +44,29 @@ def add_detection(
     epi_model.add_flow(detect)
 
 
-# def get_outcome_rate(
-#     outcome: str,
-#     rx_duration: float,
-#     prop_neg_rx_death: float,
-#     tsr: callable,
-#     death_rate: callable,
-# ) -> float:
-#     """Get the treatment outcome rate for
-#     relapse, treatment-related death or success.
-
-#     Args:
-#         outcome: The outcome of interest
-#         rx_duration: Treatment duration
-#         prop_neg_rx_death: Proportion of unsuccessful treatment outcomes
-#             resulting in death
-#         tsr: Treatment success "rate" function (returns a proportion)
-#         death_rate: Death rate (age-specific)
-
-#     Returns:
-#         The rate value for the outcome of interest
-#     """
-#     prop_nat_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rate)
-#     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
-#     prop_death_from_rx = jnp.maximum(req_prop_death_on_rx - prop_nat_death_on_rx, 0.0)
-#     prop_total_death = prop_death_from_rx + prop_nat_death_on_rx
-
-#     relapse_prop = jnp.maximum(1.0 - tsr - prop_total_death, 0.0)
-#     success = jnp.maximum(1.0 - relapse_prop - prop_total_death, 0.0)
-
-#     if outcome == "relapse":
-#         return relapse_prop / rx_duration
-#     elif outcome == "rx_death":
-#         return prop_death_from_rx / rx_duration
-#     elif outcome == "success":
-#         return success / rx_duration
-
-
-
 def compute_outcome_props(
-    rx_duration,
-    prop_neg_rx_death,
-    tsr,
-    death_rate,
-):
-    """Return all outcome proportions"""
+    rx_duration: float,
+    prop_neg_rx_death: float,
+    tsr: float,
+    death_rate: np.array,
+) -> Tuple[np.array]:
+    """Get the numeric values for all the treatment outcomes.
 
+    Args:
+        rx_duration: Treatment duration in model time units (years)
+        prop_neg_rx_death: Proportion of unsuccessful treatment outcomes resulting in death
+        tsr: Treatment success rate
+        death_rate: Natural death rate
+
+    Returns:
+        Treatment outcome proportions for each of the three outcomes
+    """
     prop_nat_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rate)
     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
-
-    prop_death_from_rx = jnp.maximum(
-        req_prop_death_on_rx - prop_nat_death_on_rx, 0.0
-    )
-
+    prop_death_from_rx = jnp.maximum(req_prop_death_on_rx - prop_nat_death_on_rx, 0.0)
     prop_total_death = prop_death_from_rx + prop_nat_death_on_rx
-
     relapse_prop = jnp.maximum(1.0 - tsr - prop_total_death, 0.0)
     success = jnp.maximum(1.0 - relapse_prop - prop_total_death, 0.0)
-
     return success, relapse_prop, prop_death_from_rx
 
 
@@ -108,21 +74,34 @@ def get_outcome_rate(
     outcome: str,
     rx_duration: float,
     prop_neg_rx_death: float,
-    tsr: callable,
-    death_rate: callable,
-):
+    tsr: float,
+    death_rate: np.array,
+) -> np.array:
+    """Get the flow rate for a specific treatment outcome.
+
+    Args:
+        outcome: The outcome identifier (success, relapse or rx_death)
+        rx_duration: Treatment duration in model time units (years)
+        prop_neg_rx_death: Proportion of unsuccessful treatment outcomes resulting in death
+        tsr: Treatment success rate
+        death_rate: Natural death rate
+
+    Returns:
+        The flow rate for the outcome requested
+    """
     success, relapse_prop, prop_death_from_rx = compute_outcome_props(
         rx_duration,
         prop_neg_rx_death,
         tsr,
         death_rate,
     )
-    if outcome == "relapse":
+    if outcome == "success":
+        result = success
+    elif outcome == "relapse":
         result = relapse_prop
     elif outcome == "rx_death":
         result = prop_death_from_rx
-    elif outcome == "success":
-        result = success
+
     return result / rx_duration
 
 
@@ -173,27 +152,26 @@ def add_treatment_flows(
 
     # Success
     succ_dest = (disease_state["recovered"], age_strat[age_strat.strata])
-    out_rate = defer(get_outcome_rate)("success", dur, death_unsucc_func, tsr_func, death_func)
-    outcome_flow = TransitionFlow("success", rx_source, succ_dest, out_rate)
-    epi_model.add_flow(outcome_flow)
+    succ_rate = defer(get_outcome_rate)("success", dur, death_unsucc_func, tsr_func, death_func)
+    succ_flow = TransitionFlow("success", rx_source, succ_dest, succ_rate)
+    epi_model.add_flow(succ_flow)
 
     # Relapse
     rel_dest = (clin_strat["subclin"], infect_strat["low"], age_strat[age_strat.strata])
-    out_rate = defer(get_outcome_rate)("relapse", dur, death_unsucc_func, tsr_func, death_func)
-    outcome_flow = TransitionFlow("relapse", rx_source, rel_dest, out_rate)
-    epi_model.add_flow(outcome_flow)
+    relapse_rate = defer(get_outcome_rate)("relapse", dur, death_unsucc_func, tsr_func, death_func)
+    relapse_flow = TransitionFlow("relapse", rx_source, rel_dest, relapse_rate)
+    epi_model.add_flow(relapse_flow)
 
-    # Death
+    # # Death - broken code
+    rx_death_dest = (disease_state["mtb_naive"], age_strat["0"])
+    # rx_death_rate = defer(get_outcome_rate)("rx_death", dur, death_unsucc_func, tsr_func, death_func)
+    # rx_death_flow = TransitionFlow("rx_death", rx_source, rx_death_dest, rx_death_rate)
+    # epi_model.add_flow(rx_death_flow)
+
+    # Death - working code
     for a, age in enumerate(AGE_STRATA):
         death_func_scalar = defer(lambda t, i=a: death_array_func(t)[i])(Time)
-        out_rate = defer(get_outcome_rate)(
+        rx_death_rate = defer(get_outcome_rate)(
             "rx_death", dur, death_unsucc_func, tsr_func, death_func_scalar
         )
-        epi_model.add_flow(
-            TransitionFlow(
-                f"rx_death_{age}",
-                (disease_state["treatment"], age_strat[str(age)]),
-                (disease_state["mtb_naive"], age_strat["0"]),
-                out_rate,
-            )
-        )
+        epi_model.add_flow(TransitionFlow(f"rx_death_{age}", (disease_state["treatment"], age_strat[str(age)]), rx_death_dest, rx_death_rate))
