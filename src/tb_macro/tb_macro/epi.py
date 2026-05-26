@@ -222,11 +222,11 @@ def add_infection_flows(
         jnp.array(group_popsize.index[[0, -1]]),
         jnp.array(fert_padded),
         jnp.array(fert_padded.index[[0, -1]]),
-        Time,
+        Time + epi_model.times[0],
         Parameter("bg_mixing", 0.0),
         Parameter("a_spread", 0.0),
         Parameter("pc_strength", 0.0),
-    )
+    ).set_name("dynamic_mm")
     for comp in INFECT_COMPS:
         suscept_comp = "cleared" if comp in ["cleared", "recovered"] else comp
         rel_sus = Parameter(f"rel_sus_{suscept_comp}", 0.0)
@@ -292,10 +292,13 @@ def get_latency_age_adj(
     idx_0 = [a for a in age_strat.strata if int(a) < 5]
     idx_5 = [a for a in age_strat.strata if 5 <= int(a) < 15]
     idx_15 = [a for a in age_strat.strata if 15 <= int(a)]
-    latency_cats = CategoryGroup([Category(age_strat[s]) for s in [idx_0, idx_5, idx_15]])
+    latency_cats = CategoryGroup(
+        [Category(age_strat[s]) for s in [idx_0, idx_5, idx_15]]
+    )
 
     def latency_age_adj(p_0, p_5, p_15):
         return latency_cats.wrap(jnp.array([p_0, p_5, p_15]))
+
     return latency_age_adj
 
 
@@ -339,10 +342,12 @@ def add_latency_flows(
         Parameter("progression_age15", 0.0),
     )
     prog = TransitionFlow(
-        "progression", 
-        disease_state["incipient"], 
-        clin_strat["subclin"], 
+        "progression",
+        disease_state["incipient"],
+        clin_strat["subclin"],
         prog_func,
     )
-    prog.adjustments.append(defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0)))
+    prog.adjustments.append(
+        defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0))
+    )
     epi_model.add_flow(prog)
