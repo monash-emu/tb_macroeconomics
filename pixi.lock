@@ -63,7 +63,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.13-h010d191_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tornado-6.5.4-py313h6535dbc_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zeromq-4.3.5-h4818236_10.conda
-      - pypi: git+https://github.com/monash-emu/summer3wip.git#891a6d58486a8a700d6e470c4115ea982de58ab1
+      - pypi: git+https://github.com/monash-emu/summer3wip#22d7d7559ab882de5d789ace16dea8b8f8085eee
       - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/18/fee700125fe4367c75be1d0f300d13069f5ed119a635ea9199de4b4bc9dc/jaxlib-0.9.1-cp313-cp313-macosx_11_0_arm64.whl
@@ -843,7 +843,7 @@ packages:
   purls: []
   size: 245246
   timestamp: 1772476886668
-- pypi: git+https://github.com/monash-emu/summer3wip.git#891a6d58486a8a700d6e470c4115ea982de58ab1
+- pypi: git+https://github.com/monash-emu/summer3wip#22d7d7559ab882de5d789ace16dea8b8f8085eee
   name: summer3
   version: 0.3a0
   requires_dist:
