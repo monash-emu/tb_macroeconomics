@@ -136,7 +136,9 @@ def add_treatment_flows(
     # Death in unsuccessful outcomes calculations
     death_unsucc_times = get_scale_data(np.array(death_in_unsucc_data.index))
     death_unsucc_vals = get_scale_data(np.array(death_in_unsucc_data))
-    death_unsucc_func = defer(lambda t: get_cos_multicurve(t, death_unsucc_times, death_unsucc_vals))(Time)
+    death_unsucc_func = defer(
+        lambda t: get_cos_multicurve(t, death_unsucc_times, death_unsucc_vals)
+    )(Time)
 
     # Natural death calculations
     death_array_func = make_multi_interp_array_func(
@@ -152,26 +154,39 @@ def add_treatment_flows(
 
     # Success
     succ_dest = (disease_state["recovered"], age_strat[age_strat.strata])
-    succ_rate = defer(get_outcome_rate)("success", dur, death_unsucc_func, tsr_func, death_func)
+    succ_rate = defer(get_outcome_rate)(
+        "success", dur, death_unsucc_func, tsr_func, death_func
+    )
     succ_flow = TransitionFlow("success", rx_source, succ_dest, succ_rate)
     epi_model.add_flow(succ_flow)
 
     # Relapse
     rel_dest = (clin_strat["subclin"], infect_strat["low"], age_strat[age_strat.strata])
-    relapse_rate = defer(get_outcome_rate)("relapse", dur, death_unsucc_func, tsr_func, death_func)
+    relapse_rate = defer(get_outcome_rate)(
+        "relapse", dur, death_unsucc_func, tsr_func, death_func
+    )
     relapse_flow = TransitionFlow("relapse", rx_source, rel_dest, relapse_rate)
     epi_model.add_flow(relapse_flow)
 
     # # Death - broken code
     rx_death_dest = (disease_state["mtb_naive"], age_strat["0"])
-    # rx_death_rate = defer(get_outcome_rate)("rx_death", dur, death_unsucc_func, tsr_func, death_func)
-    # rx_death_flow = TransitionFlow("rx_death", rx_source, rx_death_dest, rx_death_rate)
-    # epi_model.add_flow(rx_death_flow)
+    rx_death_rate_raw = defer(get_outcome_rate)(
+        "rx_death", dur, death_unsucc_func, tsr_func, death_func
+    )
+    wrap_age_cats = lambda data: age_strat.categories().wrap(data)
+    rx_death_rate_age_cats = defer(wrap_age_cats)(rx_death_rate_raw)
 
-    # Death - working code
-    for a, age in enumerate(AGE_STRATA):
-        death_func_scalar = defer(lambda t, i=a: death_array_func(t)[i])(Time)
-        rx_death_rate = defer(get_outcome_rate)(
-            "rx_death", dur, death_unsucc_func, tsr_func, death_func_scalar
-        )
-        epi_model.add_flow(TransitionFlow(f"rx_death_{age}", (disease_state["treatment"], age_strat[str(age)]), rx_death_dest, rx_death_rate))
+    rx_death_flow = TransitionFlow(
+        "rx_death", rx_source, rx_death_dest, rx_death_rate_age_cats
+    )
+    epi_model.add_flow(rx_death_flow)
+
+    # Death - previous working loop
+    # for a, age in enumerate(AGE_STRATA):
+    #     death_func_scalar = defer(lambda t, i=a: death_array_func(t)[i])(Time)
+    #     rx_death_rate = defer(get_outcome_rate)(
+    #         "rx_death", dur, death_unsucc_func, tsr_func, death_func_scalar
+    #     )
+    #     epi_model.add_flow(TransitionFlow(f"rx_death_{age}", (disease_state["treatment"], age_strat[str(age)]), rx_death_dest, rx_death_rate))
+
+    # rx_death_flow = TransitionFlow("rx_death", rx_source, rx_death_dest, defer(get_outcome_rate)("rx_death", dur, death_unsucc_func, tsr_func, death_func))
