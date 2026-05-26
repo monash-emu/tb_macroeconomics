@@ -33,7 +33,9 @@ def add_detection(
     past = Parameter("passive_detection_past", 0.0)
     current = Parameter("passive_detection_current", 0.0)
     sim_time = Time + start_time
-    tv_detection_rate = defer(tanh_based_scaleup)(sim_time, shape, inflect, past, current)
+    tv_detection_rate = defer(tanh_based_scaleup)(
+        sim_time, shape, inflect, past, current
+    )
     source = (disease_state["active"], clin_strat["clin"])
     dest = disease_state["treatment"]
     detect = TransitionFlow("detection", source, dest, tv_detection_rate)
@@ -67,7 +69,6 @@ def compute_outcome_props(
 
 
 def get_outcome_rate(
-    # outcome: str,
     dur: float,
     prop_neg_rx_death: float,
     tsr: float,
