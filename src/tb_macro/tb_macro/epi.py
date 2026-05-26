@@ -188,6 +188,7 @@ def add_infection_flows(
     group_popsize: jnp.array,
     fert_padded: jnp.array,
     young_end_age: float,
+    start_time: float,
 ):
     """Add infection flows to the model.
     Flows are added from each susceptible compartment
@@ -204,6 +205,7 @@ def add_infection_flows(
         group_popsize: The population sizes for the mixing matrix
         fert_padded: The fertility data for the mixing matrix
         young_end_age: The maximum age to receive reduced susceptibility
+        start_time: Run start time
     """
 
     dynamic_mm = defer(get_norm_c_matrix)(
@@ -213,7 +215,7 @@ def add_infection_flows(
         jnp.array(group_popsize.index[[0, -1]]),
         jnp.array(fert_padded),
         jnp.array(fert_padded.index[[0, -1]]),
-        Time + epi_model.times[0],
+        Time + start_time,
         Parameter("bg_mixing", 0.0),
         Parameter("a_spread", 0.0),
         Parameter("pc_strength", 0.0),
