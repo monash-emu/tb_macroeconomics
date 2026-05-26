@@ -28,17 +28,20 @@ def add_detection(
         clin_strat: The clinical stratification object
         start_time: The model starting time as a calendar year
     """
-    shape = Parameter("passive_detection_shape", 0.0)
-    inflect = Parameter("passive_detection_inflection", 0.0)
-    past = Parameter("passive_detection_past", 0.0)
-    current = Parameter("passive_detection_current", 0.0)
+
+    def detect_curve(t, detect_time_1, detect_val_1):
+        times = get_scale_data(np.array([1950.0, detect_time_1]))
+        vals = get_scale_data(np.array([0.0, detect_val_1]))
+        return get_cos_multicurve(t, times, vals)
+
+    peak_detect_time = Parameter("peak_detect_time", 0.0)
+    peak_detect_val = Parameter("peak_detect_val", 0.0)
     sim_time = Time + start_time
-    tv_detection_rate = defer(tanh_based_scaleup)(
-        sim_time, shape, inflect, past, current
-    )
+    detect_func = defer(detect_curve)(sim_time, peak_detect_time, peak_detect_val)
+
     source = (disease_state["active"], clin_strat["clin"])
     dest = disease_state["treatment"]
-    detect = TransitionFlow("detection", source, dest, tv_detection_rate)
+    detect = TransitionFlow("detection", source, dest, detect_func)
     epi_model.add_flow(detect)
 
 
