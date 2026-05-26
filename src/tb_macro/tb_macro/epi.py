@@ -151,19 +151,9 @@ def infect_process(
         age_breaks: Age values used to determine young-age stratification
         young_end_age: Maximum age to receive reduced susceptibility
         young_suscept: Susceptibility multiplier for younger ages
-        rel_infectiousness_lowinf: Relative infectiousness for low-infectious cases
-        rel_infectiousness_subclin: Relative infectiousness for subclinical cases
-        mm_function: Function that builds a mixing matrix at a given time
-        a_spread: Assortative mixing spread parameter
-        bg_mixing: Background mixing level
-        pc_strength: Parent-child contact strength
-        weights: Within-age-group weight matrix
-        weight_ends: Start/end indices for weight data
-        pops: Population counts by age and time
-        pop_ends: Start/end indices for population data
-        fert: Fertility data
-        fert_ends: Start/end indices for fertility data
-        time: Model time at which to compute mixing
+        rel_infect_lowinf: Relative infectiousness for low-infectious cases
+        rel_infect_subclin: Relative infectiousness for subclinical cases
+        mm_dynamic: Function that builds a mixing matrix at a given time
 
     Returns:
         CategoryData containing the age-stratified force of infection.
@@ -215,6 +205,7 @@ def add_infection_flows(
         fert_padded: The fertility data for the mixing matrix
         young_end_age: The maximum age to receive reduced susceptibility
     """
+    
     dynamic_mm = defer(get_norm_c_matrix)(
         jnp.array(age_weights),
         jnp.array(age_weights.index[[0, -1]]),
@@ -268,12 +259,10 @@ def add_seeding(
     peak_time = Parameter("seed_peak_time", 0.0)
     peak_height = Parameter("seed_peak_rate", 0.0)
     width = Parameter("seed_duration", 0.0)
-    seed_flow = TransitionFlow(
-        "seed_peak",
-        disease_state["mtb_naive"],
-        disease_state["incipient"],
-        defer(get_triang_vals)(Time, peak_time, peak_height, width),
-    )
+    source = disease_state["mtb_naive"]
+    dest = disease_state["incipient"]
+    rate = defer(get_triang_vals)(Time, peak_time, peak_height, width)
+    seed_flow = TransitionFlow("seed_peak", source, dest, rate)
     epi_model.add_flow(seed_flow)
 
 
@@ -322,12 +311,9 @@ def add_latency_flows(
         Parameter("containment_age5", 0.0),
         Parameter("containment_age15", 0.0),
     )
-    contain = TransitionFlow(
-        "containment",
-        disease_state["incipient"],
-        disease_state["contained"],
-        contain_func,
-    )
+    source = disease_state["incipient"]
+    dest = disease_state["contained"]
+    contain = TransitionFlow("containment", source, dest, contain_func)
     epi_model.add_flow(contain)
 
     def inf_prog_adj(p_inf) -> CategoryData:
@@ -338,11 +324,8 @@ def add_latency_flows(
         Parameter("progression_age5", 0.0),
         Parameter("progression_age15", 0.0),
     )
-    prog = TransitionFlow(
-        "progression", 
-        disease_state["incipient"], 
-        clin_strat["subclin"], 
-        prog_func,
-    )
+    source = disease_state["incipient"]
+    dest = clin_strat["subclin"]
+    prog = TransitionFlow("progression", source, dest, prog_func)
     prog.adjustments.append(defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0)))
     epi_model.add_flow(prog)
