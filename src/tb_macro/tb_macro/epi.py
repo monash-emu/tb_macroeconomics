@@ -205,7 +205,7 @@ def add_infection_flows(
         fert_padded: The fertility data for the mixing matrix
         young_end_age: The maximum age to receive reduced susceptibility
     """
-    
+
     dynamic_mm = defer(get_norm_c_matrix)(
         jnp.array(age_weights),
         jnp.array(age_weights.index[[0, -1]]),
@@ -327,20 +327,10 @@ def add_latency_flows(
         Parameter("progression_age5", 0.0),
         Parameter("progression_age15", 0.0),
     )
-<<<<<<< HEAD
-    prog = TransitionFlow(
-        "progression",
-        disease_state["incipient"],
-        clin_strat["subclin"],
-        prog_func,
-    )
-    prog.adjustments.append(
-        defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0))
-    )
-=======
     source = disease_state["incipient"]
     dest = clin_strat["subclin"]
     prog = TransitionFlow("progression", source, dest, prog_func)
-    prog.adjustments.append(defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0)))
->>>>>>> c85d23e117a4416aefc701a623c4db49d0eb34de
+    prog.adjustments.append(
+        defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0))
+    )
     epi_model.add_flow(prog)
