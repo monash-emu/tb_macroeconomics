@@ -126,7 +126,7 @@ def add_treatment_flows(
 
     # Other common variables
     all_age_strata = age_strat[age_strat.strata]
-    source = (disease_state["treatment"], )
+    source = (disease_state["treatment"], all_age_strata)
     dur = Parameter("rx_duration", 0.0)
 
     # Success
