@@ -14,6 +14,7 @@ def add_detection(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
     clin_strat: Stratification,
+    start_time: float,
 ):
     """Add the process of disease detection to the model.
 
@@ -21,12 +22,14 @@ def add_detection(
         epi_model: The epidemiological model to add the flows to
         disease_state: The compartmental stratification object
         clin_strat: The clinical stratification object
+        start_time: The model starting time as a calendar year
     """
     shape = Parameter("passive_detection_shape", 0.0)
     inflect = Parameter("passive_detection_inflection", 0.0)
     past = Parameter("passive_detection_past", 0.0)
     current = Parameter("passive_detection_current", 0.0)
-    tv_detection_rate = defer(tanh_based_scaleup)(Time, shape, inflect, past, current)
+    sim_time = Time + start_time
+    tv_detection_rate = defer(tanh_based_scaleup)(sim_time, shape, inflect, past, current)
     source = (disease_state["active"], clin_strat["clin"])
     dest = disease_state["treatment"]
     detect = TransitionFlow("detection", source, dest, tv_detection_rate)
