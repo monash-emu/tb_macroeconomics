@@ -26,8 +26,8 @@ def make_multi_interp_array_func(
         The interpolated array function
     """
     def interp_single_age(t, age_rates):
-        model_time = t + start_time
-        return jnp.interp(model_time, times, age_rates, left=age_rates[0], right=age_rates[-1])
+        sim_time = t + start_time
+        return jnp.interp(sim_time, times, age_rates, left=age_rates[0], right=age_rates[-1])
 
     interp_all_ages = vmap(interp_single_age, in_axes=(None, 1)) # No axis for time, columns for age
     return lambda t: interp_all_ages(t, rates)

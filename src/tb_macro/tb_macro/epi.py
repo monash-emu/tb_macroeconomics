@@ -205,7 +205,7 @@ def add_infection_flows(
         fert_padded: The fertility data for the mixing matrix
         young_end_age: The maximum age to receive reduced susceptibility
     """
-    
+
     dynamic_mm = defer(get_norm_c_matrix)(
         jnp.array(age_weights),
         jnp.array(age_weights.index[[0, -1]]),
@@ -249,19 +249,22 @@ def add_infection_flows(
 def add_seeding(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
+    start_time: float,
 ):
     """Add the seeding of infection into the model.
 
     Args:
         epi_model: The epidemiological model to add the flows to
         disease_state: The compartmental stratification object
+        start_time: Run start time
     """
     peak_time = Parameter("seed_peak_time", 0.0)
     peak_height = Parameter("seed_peak_rate", 0.0)
     width = Parameter("seed_duration", 0.0)
     source = disease_state["mtb_naive"]
     dest = disease_state["incipient"]
-    rate = defer(get_triang_vals)(Time, peak_time, peak_height, width)
+    sim_time = Time + start_time
+    rate = defer(get_triang_vals)(sim_time, peak_time, peak_height, width)
     seed_flow = TransitionFlow("seed_peak", source, dest, rate)
     epi_model.add_flow(seed_flow)
 
