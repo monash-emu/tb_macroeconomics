@@ -65,6 +65,7 @@ def get_outcome_rate(
     prop_neg_rx_death: float,
     tsr: float,
     death_rate: np.array,
+    age_strat,
 ) -> np.array:
     """Get the flow rate for a specific treatment outcome.
 
@@ -80,7 +81,7 @@ def get_outcome_rate(
     """
     success, relapse, rx_death = compute_outcome_props(dur, prop_neg_rx_death, tsr, death_rate)
     result = success if outcome == "success" else relapse if outcome == "relapse" else rx_death
-    return result / dur
+    return age_strat.categories().wrap(result / dur)
 
 
 def add_treatment_flows(
@@ -124,25 +125,24 @@ def add_treatment_flows(
     death_func = defer(death_array_func)(Time)
 
     # Other common variables
-    rx_source = (disease_state["treatment"], age_strat[age_strat.strata])
+    all_age_strata = age_strat[age_strat.strata]
+    source = (disease_state["treatment"], )
     dur = Parameter("rx_duration", 0.0)
 
     # Success
-    dest = (disease_state["recovered"], age_strat[age_strat.strata])
-    rate = defer(get_outcome_rate)("success", dur, death_unsucc_func, tsr_func, death_func)
-    flow = TransitionFlow("success", rx_source, dest, rate)
+    dest = (disease_state["recovered"], all_age_strata)
+    rate = defer(get_outcome_rate)("success", dur, death_unsucc_func, tsr_func, death_func, age_strat)
+    flow = TransitionFlow("success", source, dest, rate)
     epi_model.add_flow(flow)
 
     # Relapse
-    dest = (clin_strat["subclin"], infect_strat["low"], age_strat[age_strat.strata])
-    rate = defer(get_outcome_rate)("relapse", dur, death_unsucc_func, tsr_func, death_func)
-    flow = TransitionFlow("relapse", rx_source, dest, rate)
+    dest = (clin_strat["subclin"], infect_strat["low"], all_age_strata)
+    rate = defer(get_outcome_rate)("relapse", dur, death_unsucc_func, tsr_func, death_func, age_strat)
+    flow = TransitionFlow("relapse", source, dest, rate)
     epi_model.add_flow(flow)
 
     # Death on treatment
     dest = (disease_state["mtb_naive"], age_strat["0"])
-    raw_rate = defer(get_outcome_rate)("rx_death", dur, death_unsucc_func, tsr_func, death_func)
-    wrap_age_cats = lambda data: age_strat.categories().wrap(data)
-    rate = defer(wrap_age_cats)(raw_rate)
-    flow = TransitionFlow("rx_death", rx_source, dest, rate)
+    rate = defer(get_outcome_rate)("rx_death", dur, death_unsucc_func, tsr_func, death_func, age_strat)
+    flow = TransitionFlow("rx_death", source, dest, rate)
     epi_model.add_flow(flow)
