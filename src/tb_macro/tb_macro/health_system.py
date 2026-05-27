@@ -1,4 +1,3 @@
-from typing import Tuple
 from jax import numpy as jnp
 import pandas as pd
 import numpy as np
@@ -10,7 +9,7 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Time, Parameter
 
-from tb_macro.utils import tanh_based_scaleup, get_scale_data, get_cos_multicurve
+from tb_macro.utils import get_scale_data, get_cos_multicurve
 from tb_macro.demography import make_multi_interp_array_func
 
 
@@ -71,7 +70,7 @@ def compute_outcome_props(
     return {"success": success, "relapse": relapse_prop, "rx_death": prop_death_from_rx}
 
 
-def get_outcome_rate(
+def get_outcome_rates(
     dur: float,
     prop_neg_rx_death: float,
     tsr: float,
@@ -146,21 +145,19 @@ def add_treatment_flows(
 
     # Get all outcome rates
     dur = Parameter("rx_duration", 0.0)
-    outcome_rates = defer(get_outcome_rate)(
-        dur, death_unsucc_func, tsr_func, death_func, age_strat
-    )
+    out_rates = defer(get_outcome_rates)(dur, death_unsucc_func, tsr_func, death_func, age_strat)
 
     # Success
     dest = (disease_state["recovered"], all_age_strata)
-    flow = TransitionFlow("success", source, dest, outcome_rates["success"])
+    flow = TransitionFlow("success", source, dest, out_rates["success"])
     epi_model.add_flow(flow)
 
     # Relapse
     dest = (clin_strat["subclin"], infect_strat["low"], all_age_strata)
-    flow = TransitionFlow("relapse", source, dest, outcome_rates["relapse"])
+    flow = TransitionFlow("relapse", source, dest, out_rates["relapse"])
     epi_model.add_flow(flow)
 
     # Death on treatment
     dest = (disease_state["mtb_naive"], age_strat["0"])
-    flow = TransitionFlow("rx_death", source, dest, outcome_rates["rx_death"])
+    flow = TransitionFlow("rx_death", source, dest, out_rates["rx_death"])
     epi_model.add_flow(flow)

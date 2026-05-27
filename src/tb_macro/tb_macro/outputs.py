@@ -7,7 +7,7 @@ from tb_macro.constants import AGE_STRATA
 
 
 def plot_dynamic_mixing_matrix(
-    dmm,
+    dmm: ManagedArray,
     start: float,
     interval: float,
     n_cols: int,
