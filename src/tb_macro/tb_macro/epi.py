@@ -335,7 +335,7 @@ def add_latency_flows(
     source = disease_state["incipient"]
     dest = clin_strat["subclin"]
     prog = TransitionFlow("progression", source, dest, prog_func)
-    prog.adjustments.append(
+    prog.adjustments_dest.append(
         defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0))
     )
     epi_model.add_flow(prog)

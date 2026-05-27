@@ -30,8 +30,8 @@ def add_detection(
     """
 
     def detect_curve(t, detect_time_1, detect_val_1):
-        times = get_scale_data(np.array([1950.0, detect_time_1]))
-        vals = get_scale_data(np.array([0.0, detect_val_1]))
+        times = get_scale_data(jnp.array([1950.0, detect_time_1]))
+        vals = get_scale_data(jnp.array([0.0, detect_val_1]))
         return get_cos_multicurve(t, times, vals)
 
     peak_detect_time = Parameter("peak_detect_time", 0.0)
@@ -146,7 +146,9 @@ def add_treatment_flows(
 
     # Get all outcome rates
     dur = Parameter("rx_duration", 0.0)
-    outcome_rates = defer(get_outcome_rate)(dur, death_unsucc_func, tsr_func, death_func, age_strat)
+    outcome_rates = defer(get_outcome_rate)(
+        dur, death_unsucc_func, tsr_func, death_func, age_strat
+    )
 
     # Success
     dest = (disease_state["recovered"], all_age_strata)
