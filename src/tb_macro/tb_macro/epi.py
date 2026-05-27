@@ -57,6 +57,7 @@ def get_base_model(
 def add_natural_history(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
+    age_strat: Stratification,
     clin_strat: Stratification,
     infect_strat: Stratification,
 ):
@@ -65,60 +66,60 @@ def add_natural_history(
     Args:
         epi_model: The epidemiological model
         disease_state: The disease state compartments
+        age_strat: The age stratification object
         clin_strat: The clinical stratification
         infect_strat: The infectiousness stratification
     """
-    clearance = TransitionFlow(
-        "clearance",
-        disease_state["contained"],
-        disease_state["cleared"],
-        Parameter("clearance_rate", 0.0),
-    )
-    breakdown = TransitionFlow(
-        "breakdown",
-        disease_state["contained"],
-        disease_state["incipient"],
-        Parameter("breakdown_rate", 0.0),
-    )
-    increase_infect = TransitionFlow(
-        "increase_infectiousness",
-        infect_strat["low"],
-        infect_strat["high"],
-        Parameter("increase_infect", 0.0),
-    )
-    decrease_infect = TransitionFlow(
-        "decrease_infectiousness",
-        infect_strat["high"],
-        infect_strat["low"],
-        Parameter("decrease_infect", 0.0),
-    )
-    clin_dev = TransitionFlow(
-        "clinical_develop",
-        clin_strat["subclin"],
-        clin_strat["clin"],
-        Parameter("clinical_development", 0.0),
-    )
-    clin_regress = TransitionFlow(
-        "clinical_regress",
-        clin_strat["clin"],
-        clin_strat["subclin"],
-        Parameter("clinical_regression", 0.0),
-    )
-    self_recovery = TransitionFlow(
-        "self_recovery",
-        (disease_state["active"], clin_strat["subclin"]),
-        disease_state["recovered"],
-        Parameter("self_recovery", 0.0),
-    )
-
-    # Add flows to model
+    source = disease_state["contained"]
+    dest = disease_state["cleared"]
+    rate = Parameter("clearance_rate", 0.0)
+    clearance = TransitionFlow("clearance", source, dest, rate)
     epi_model.add_flow(clearance)
+
+    source = disease_state["contained"]
+    dest = disease_state["incipient"]
+    rate = Parameter("breakdown_rate", 0.0)
+    breakdown = TransitionFlow("breakdown", source, dest, rate)
     epi_model.add_flow(breakdown)
+
+    source = infect_strat["low"]
+    dest = infect_strat["high"]
+    rate = Parameter("increase_infect", 0.0)
+    increase_infect = TransitionFlow("increase_infectiousness", source, dest, rate)
     epi_model.add_flow(increase_infect)
+
+    source = infect_strat["high"]
+    dest = infect_strat["low"]
+    rate = Parameter("decrease_infect", 0.0)
+    decrease_infect = TransitionFlow("decrease_infectiousness", source, dest, rate)
     epi_model.add_flow(decrease_infect)
+
+    source = clin_strat["subclin"]
+    dest = clin_strat["clin"]
+    rate = Parameter("clinical_development", 0.0)
+    clin_dev = TransitionFlow("clinical_develop", source, dest, rate)
     epi_model.add_flow(clin_dev)
+
+    source = clin_strat["clin"]
+    dest = clin_strat["subclin"]
+    rate = Parameter("clinical_regression", 0.0)
+    clin_regress = TransitionFlow("clinical_regress", source, dest, rate)
     epi_model.add_flow(clin_regress)
+
+    source = (disease_state["active"], clin_strat["subclin"])
+    dest = disease_state["recovered"]
+    rate = Parameter("self_recovery", 0.0)
+    self_recovery = TransitionFlow("self_recovery", source, dest, rate)
     epi_model.add_flow(self_recovery)
+
+    def mort_rates(low_rate, high_rate):
+        return infect_strat.categories().wrap(jnp.array([low_rate, high_rate]))
+
+    source = disease_state["active"]
+    dest = (disease_state["mtb_naive"], age_strat["0"])
+    rate = defer(mort_rates)(Parameter("tb_mort_lowinf", 0.0), Parameter("tb_mort_inf", 0.0))
+    tb_mort = TransitionFlow("tb_mortality", source, dest, rate)
+    epi_model.add_flow(tb_mort)
 
 
 def infect_process(
