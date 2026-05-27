@@ -144,13 +144,9 @@ def add_treatment_flows(
     all_age_strata = age_strat[age_strat.strata]
     source = (disease_state["treatment"], all_age_strata)
 
-    outcome_rates = defer(get_outcome_rate)(
-        Parameter("rx_duration", 0.0),
-        death_unsucc_func,
-        tsr_func,
-        death_func,
-        age_strat,
-    )
+    # Get all outcome rates
+    dur = Parameter("rx_duration", 0.0)
+    outcome_rates = defer(get_outcome_rate)(dur, death_unsucc_func, tsr_func, death_func, age_strat)
 
     # Success
     dest = (disease_state["recovered"], all_age_strata)
