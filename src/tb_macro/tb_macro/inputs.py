@@ -167,23 +167,6 @@ def convert_conmat(
     ).reindex(index=AGE_STRATA, columns=AGE_STRATA)
 
 
-def normalise_spectral_radius(
-    matrix: pd.DataFrame,
-) -> pd.DataFrame:
-    """Normalise matrix by dividing by
-    its spectral radius.
-
-    Args:
-        matrix: The matrix to normalise
-
-    Returns:
-        The normalised matrix
-    """
-    eigvals = np.linalg.eigvals(matrix)
-    spectral_radius = np.max(np.abs(eigvals))
-    return matrix / spectral_radius
-
-
 def build_age_weight_lookup(
     single_age: pd.DataFrame,
 ) -> pd.DataFrame:
