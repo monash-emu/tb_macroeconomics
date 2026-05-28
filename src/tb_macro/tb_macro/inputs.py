@@ -314,3 +314,20 @@ def calc_death_in_unsucc_outcomes(
     prop_death_unsucc = prop_death_unsucc.where(denom > 0)
     prop_death_unsucc.index = data["year"]
     return prop_death_unsucc
+
+
+def get_country_indicators(
+    iso3: str,
+) -> pd.DataFrame:
+    """Get raw WHO burden estimates.
+
+    Args:
+        iso3: Country identifier
+
+    Returns:
+        The data
+    """
+    data = pd.read_csv(DATA_PATH / "who/who_indicators_20260528T0213Z.csv")
+    country_data = data[data["iso3"] == iso3]
+    country_data.index = country_data["year"]
+    return country_data

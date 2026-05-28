@@ -79,10 +79,10 @@ def get_pop_prev(
     return prev / total_pop * 1e5
 
 
-def get_pop_mort(
+def get_mort(
     results: dict,
 ) -> pd.DataFrame:
-    """Get the annual TB-related mortality rate per 100,000 population
+    """Get the TB-related mortality absolute numbers
     disaggregated into community and treatment-related deaths.
 
     Args:
@@ -98,8 +98,7 @@ def get_pop_mort(
         axis=1,
     ).clip(lower=0.0)
     tb_mort.columns = ["community", "treatment"]
-    total_pop = results["compartments"].sum(to_dims="time")
-    return tb_mort / total_pop.to_pandas_df().values * 1e5
+    return tb_mort
 
 
 def get_latent_percentage(
