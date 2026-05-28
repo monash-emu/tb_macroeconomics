@@ -117,7 +117,9 @@ def add_natural_history(
 
     source = disease_state["active"]
     dest = (disease_state["mtb_naive"], age_strat["0"])
-    rate = defer(mort_rates)(Parameter("tb_mort_lowinf", 0.0), Parameter("tb_mort_inf", 0.0))
+    rate = defer(mort_rates)(
+        Parameter("tb_mort_lowinf", 0.0), Parameter("tb_mort_inf", 0.0)
+    )
     tb_mort = TransitionFlow("tb_mortality", source, dest, rate)
     epi_model.add_flow(tb_mort)
 
@@ -166,10 +168,10 @@ def infect_process(
     age_suscept = jnp.where(age_breaks < young_end_age, young_suscept, 1.0)
 
     infectivity_modifier = infectivity_cats.wrap(jnp.array([rel_infect_lowinf, 1.0]))
-    effective_values = mul_ma_catdata(compartment_values, infectivity_modifier)
+    effective_values = mul_ma_catdata(compartment_values, infectivity_modifier, True)
 
     clin_modifier = clinical_cats.wrap(jnp.array([rel_infect_subclin, 1.0]))
-    effective_values = mul_ma_catdata(effective_values, clin_modifier)
+    effective_values = mul_ma_catdata(effective_values, clin_modifier, True)
 
     ipops = effective_values.sumcats(infect_pop_cats).data
     total_pop = compartment_values.sumcats(age_cats).data
