@@ -28,15 +28,33 @@ def add_detection(
         start_time: The model starting time as a calendar year
     """
 
-    def detect_curve(t, detect_time_1, detect_val_1):
-        times = get_scale_data(jnp.array([1950.0, detect_time_1]))
-        vals = get_scale_data(jnp.array([0.0, detect_val_1]))
+    def detect_curve(
+        t,
+        time_0,
+        time_1,
+        val_1,
+        time_2,
+        val_2,
+    ):
+        times = get_scale_data(jnp.array([time_0, time_1, time_2]))
+        vals = get_scale_data(jnp.array([0.0, val_1, val_2]))
         return get_cos_multicurve(t, times, vals)
 
-    peak_detect_time = Parameter("peak_detect_time", 0.0)
-    peak_detect_val = Parameter("peak_detect_val", 0.0)
+    detect_time_0 = Parameter("detect_time_0", 0.0)
+    detect_time_1 = Parameter("detect_time_1", 0.0)
+    detect_val_1 = Parameter("detect_val_1", 0.0)
+    detect_time_2 = Parameter("detect_time_2", 0.0)
+    detect_val_2 = Parameter("detect_val_2", 0.0)
+
     sim_time = Time + start_time
-    detect_func = defer(detect_curve)(sim_time, peak_detect_time, peak_detect_val)
+    detect_func = defer(detect_curve)(
+        sim_time,
+        detect_time_0,
+        detect_time_1,
+        detect_val_1,
+        detect_time_2,
+        detect_val_2,
+    )
 
     source = (disease_state["active"], clin_strat["clin"])
     dest = disease_state["treatment"]
@@ -145,7 +163,9 @@ def add_treatment_flows(
 
     # Get all outcome rates
     dur = Parameter("rx_duration", 0.0)
-    out_rates = defer(get_outcome_rates)(dur, death_unsucc_func, tsr_func, death_func, age_strat)
+    out_rates = defer(get_outcome_rates)(
+        dur, death_unsucc_func, tsr_func, death_func, age_strat
+    )
 
     # Success
     dest = (disease_state["recovered"], all_age_strata)

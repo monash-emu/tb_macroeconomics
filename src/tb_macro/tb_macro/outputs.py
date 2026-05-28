@@ -158,3 +158,4 @@ def plot_dynamic_mixing_matrix(
         ax.set_title(int(year))
     im = hm.collections[0]
     fig.colorbar(im, ax=axes, shrink=0.8)
+    return fig
