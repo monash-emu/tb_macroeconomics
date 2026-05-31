@@ -131,7 +131,6 @@ def infect_process(
     infectivity_cats: CategoryGroup,
     clinical_cats: CategoryGroup,
     contact_rate: float,
-    freq_dens_exponent: float,
     age_breaks: jnp.array,
     young_end_age: int,
     young_suscept: float,
@@ -150,7 +149,6 @@ def infect_process(
         infectivity_cats: Category group for infectiousness strata
         clinical_cats: Category group for clinical strata
         contact_rate: Base contact rate multiplier
-        freq_dens_exponent: Frequency/density-dependence exponent
         age_breaks: Age values used to determine young-age stratification
         young_end_age: Maximum age to receive reduced susceptibility
         young_suscept: Susceptibility multiplier for younger ages
@@ -176,7 +174,7 @@ def infect_process(
     ipops = effective_values.sumcats(infect_pop_cats).data
     total_pop = compartment_values.sumcats(age_cats).data
 
-    inf_pressure = contact_rate * age_infect * ipops / total_pop**freq_dens_exponent
+    inf_pressure = contact_rate * age_infect * ipops / total_pop
     age_foi = age_suscept * (mm_dynamic @ inf_pressure)
     return CategoryData(infectee_cats, age_foi)
 
@@ -234,7 +232,6 @@ def add_infection_flows(
             infect_strat.categories(),
             clin_strat.categories(),
             scaled_contact_rate,
-            Parameter("freq_dens_exponent", 1.0),
             jnp.array(AGE_STRATA),
             young_end_age,
             Parameter("young_suscept", 0.0),
