@@ -45,7 +45,7 @@ def get_partial_strat_props(
     results: dict,
     strat: Stratification,
 ) -> ManagedArray:
-    """Get teh distribution of the population over
+    """Get the distribution of the population over
     a stratification that is applied to part of the population.
 
     Args:
@@ -58,48 +58,6 @@ def get_partial_strat_props(
     vals = results["compartments"].sumcats(compartment=strat.categories())
     strat_total = vals.sum(to_dims="time")
     return vals / strat_total
-
-
-def get_pop_prev(
-    results: dict,
-    disease_strat: Stratification,
-) -> ManagedArray:
-    """Get the prevalence of active disease per 100,000 population.
-
-    Args:
-        results: Single run results
-        disease_strat: The disease state stratification
-
-    Returns:
-        The prevalence
-    """
-    vals = results["compartments"].sumcats(
-        compartment=disease_strat.categories(PREV_STATES)
-    )
-    total_pop = results["compartments"].sum(to_dims="time")
-    prev = vals.sum(to_dims="time")
-    return prev / total_pop * 1e5
-
-
-def get_latent_percentage(
-    results: dict,
-    disease_strat: Stratification,
-) -> ManagedArray:
-    """Get the percentage of the population ever
-    previously infected.
-
-    Args:
-        results: Single run results
-
-    Returns:
-        The latent percentage
-    """
-    latent_vals = results["compartments"].sumcats(
-        compartment=disease_strat.categories(LATENT_STATES)
-    )
-    latent_prev = latent_vals.sum(to_dims="time")
-    total_pop = get_total_pop(results)
-    return latent_prev / total_pop * 1e2
 
 
 def plot_dynamic_mixing_matrix(
