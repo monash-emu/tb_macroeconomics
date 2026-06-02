@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from pathlib import Path
+from datetime import datetime, UTC
 
 from summer3.epi import ManagedArray, Stratification
 
@@ -159,3 +161,24 @@ def plot_dynamic_mixing_matrix(
     im = hm.collections[0]
     fig.colorbar(im, ax=axes, shrink=0.8)
     return fig
+
+
+def store_file_in_shared_folder(
+    file: pd.DataFrame,
+    name: str,
+    gdrive_path: str,
+):
+    """Store file in GDrive folder for collaborators.
+
+    Args:
+        file: The file to store
+        name: The name to give the file
+        gdrive_path: The local path to GDrive
+    """
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%MZ")
+    run_folder = f"outputs_{timestamp}"
+    gdrive_folder = "Shared drives/EMU Drive/Projects/tb_macro"
+    output_path = Path(gdrive_path) / gdrive_folder
+    run_path = output_path / run_folder
+    run_path.mkdir(exist_ok=True)
+    file.to_csv(run_path / f"{name}.csv")
