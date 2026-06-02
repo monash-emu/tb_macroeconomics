@@ -35,9 +35,11 @@ def add_detection(
         val_1,
         time_2,
         val_2,
+        time_3,
+        val_3,
     ):
-        times = get_scale_data(jnp.array([time_0, time_1, time_2]))
-        vals = get_scale_data(jnp.array([0.0, val_1, val_2]))
+        times = get_scale_data(jnp.array([time_0, time_1, time_2, time_3]))
+        vals = get_scale_data(jnp.array([0.0, val_1, val_2, val_3]))
         return get_cos_multicurve(t, times, vals)
 
     detect_time_0 = Parameter("detect_time_0", 0.0)
@@ -45,6 +47,8 @@ def add_detection(
     detect_val_1 = Parameter("detect_val_1", 0.0)
     detect_time_2 = Parameter("detect_time_2", 0.0)
     detect_val_2 = Parameter("detect_val_2", 0.0)
+    detect_time_3 = 2027.0
+    detect_val_3 = detect_val_2 + (1.0 - detect_val_2) * Parameter("detect_gap_reduction", 0.0)
 
     sim_time = Time + start_time
     detect_func = defer(detect_curve)(
@@ -54,6 +58,8 @@ def add_detection(
         detect_val_1,
         detect_time_2,
         detect_val_2,
+        detect_time_3,
+        detect_val_3,
     )
 
     source = (disease_state["active"], clin_strat["clin"])
