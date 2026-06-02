@@ -106,7 +106,7 @@ def add_ageing_flows(
 
 
 def prepare_pop_data_for_entries(
-    pop_data: pd.DataFrame,
+    group_popsize: pd.DataFrame,
     start_time: float,
     start_pop: float,
 ) -> Tuple[jnp.array]:
@@ -121,7 +121,8 @@ def prepare_pop_data_for_entries(
     Returns:
         The times and entry rates
     """
-    non_dec_data = pop_data.cummax()
+    total_pop_size = group_popsize.sum(axis=1)
+    non_dec_data = total_pop_size.cummax()
     non_dec_data[start_time] = start_pop
     non_dec_data_w_start = non_dec_data.sort_index()
     pop_increments = non_dec_data_w_start.diff()
