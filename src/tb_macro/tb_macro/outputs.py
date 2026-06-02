@@ -99,16 +99,12 @@ def plot_dynamic_mixing_matrix(
     return fig
 
 
-def store_file_in_shared_folder(
-    file: pd.DataFrame,
-    name: str,
+def get_share_folder_file_path(
     gdrive_path: str,
 ):
-    """Store file in GDrive folder for collaborators.
+    """Get path for storing file in GDrive folder for collaborators.
 
     Args:
-        file: The file to store
-        name: The name to give the file
         gdrive_path: The local path to GDrive
     """
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%MZ")
@@ -117,4 +113,4 @@ def store_file_in_shared_folder(
     output_path = Path(gdrive_path) / gdrive_folder
     run_path = output_path / run_folder
     run_path.mkdir(exist_ok=True)
-    file.to_csv(run_path / f"{name}.csv")
+    return run_path
