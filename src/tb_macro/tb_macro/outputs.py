@@ -81,28 +81,6 @@ def get_pop_prev(
     return prev / total_pop * 1e5
 
 
-def get_mort(
-    results: dict,
-) -> pd.DataFrame:
-    """Get the TB-related mortality absolute numbers
-    disaggregated into community and treatment-related deaths.
-
-    Args:
-        results: Single run results
-
-    Returns:
-        The mortality data
-    """
-    community_mort = results["flows"]["tb_mortality"].sum(to_dims="time")
-    rx_mort = results["flows"]["rx_death"].sum(to_dims="time")
-    tb_mort = pd.concat(
-        [community_mort.to_pandas_df(), rx_mort.to_pandas_df()],
-        axis=1,
-    ).clip(lower=0.0)
-    tb_mort.columns = ["community", "treatment"]
-    return tb_mort
-
-
 def get_latent_percentage(
     results: dict,
     disease_strat: Stratification,
