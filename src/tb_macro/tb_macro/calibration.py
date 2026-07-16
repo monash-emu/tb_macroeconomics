@@ -1,0 +1,60 @@
+from jax import numpy as jnp
+from jax import jit
+from numpyro import distributions as dist
+import diffrax as dfx
+
+from tb_macro.constants import LATENT_STATES
+
+
+def make_log_likelihood(
+    epi_model,
+    disease_state,
+    solver_kwargs,
+    latent_date,
+    latent_target_val,
+    notif_target,
+    who_mort,
+):
+
+    @jit
+    def get_log_likelihood(params):
+        results = epi_model.run(params, solver_kwargs=solver_kwargs)
+
+        latent = (
+            results["compartments"]
+            .query(compartment=disease_state[LATENT_STATES], time=latent_date)
+            .sum(to_dims="time")
+        )
+        total = results["compartments"].query(time=latent_date).sum(to_dims="time")
+        latent_prop = latent / (total + 1e-32)
+        latent_ll = dist.Normal(latent_target_val, 0.05).log_prob(latent_prop.data[0])
+
+        notif = (
+            results["flows"]["detection"]
+            .query(time=notif_target.index)
+            .sum(to_dims="time")
+            .data
+        )
+        notif_ll = dist.Normal(notif_target.to_numpy(), 5e3).log_prob(notif).mean()
+
+        community_deaths = (
+            results["flows"]["tb_mortality"]
+            .query(time=who_mort.index)
+            .sum(to_dims="time")
+            .data
+        )
+        rx_deaths = (
+            results["flows"]["rx_death"]
+            .query(time=who_mort.index)
+            .sum(to_dims="time")
+            .data
+        )
+        deaths = community_deaths + rx_deaths
+        death_ll = dist.Normal(who_mort.to_numpy(), 5e3).log_prob(deaths).mean()
+        ll = latent_ll + notif_ll + death_ll
+
+        return jnp.where(
+            results["aux"].result == dfx._solution.RESULTS.successful, ll, -1e10
+        )
+
+    return get_log_likelihood
