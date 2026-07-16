@@ -4,6 +4,8 @@ from datetime import datetime, UTC
 
 from summer3.epi import ManagedArray, Stratification
 
+from tb_macro.constants import PREV_STATES, LATENT_STATES
+
 
 def get_total_pop(
     results: dict,
@@ -71,3 +73,32 @@ def get_share_folder_file_path(
     run_path = output_path / run_folder
     run_path.mkdir(exist_ok=True)
     return run_path
+
+
+# Functions for extracting outputs from results with common signatures
+def get_age_inc(results, age_strat, disease_state):
+    return results["flows"]["progression"].sumcats(source=age_strat.categories())
+
+
+def get_age_prev(results, age_strat, disease_state):
+    prev_states = results["compartments"].query(compartment=disease_state[PREV_STATES])
+    return prev_states.sumcats(compartment=age_strat.categories())
+
+
+def get_age_latent(results, age_strat, disease_state):
+    latent_states = results["compartments"].query(compartment=disease_state[LATENT_STATES])
+    return latent_states.sumcats(compartment=age_strat.categories())
+
+
+def get_age_notifs(results, age_strat, disease_state):
+    return results["flows"]["detection"].sumcats(source=age_strat.categories())
+
+
+def get_age_deaths(results, age_strat, disease_state):
+    community_death_age = results["flows"]["tb_mortality"].sumcats(source=age_strat.categories())
+    rx_death_age = results["flows"]["rx_death"].sumcats(source=age_strat.categories())
+    return (community_death_age + rx_death_age)
+
+
+def get_total_pop(results, age_strat, disease_state):
+    return results["compartments"].sum(to_dims="time")
