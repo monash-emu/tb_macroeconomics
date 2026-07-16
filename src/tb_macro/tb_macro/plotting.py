@@ -91,3 +91,103 @@ def plot_dynamic_mixing_matrix(
     fig.colorbar(im, ax=axes, shrink=0.8)
     plt.close()
     return fig
+
+
+COUNT_TITLES = {
+    "prevalence": "prevalent cases",
+    "incidence": "incident cases per year",
+    "notifications": "notified cases per year",
+    "deaths": "deaths per year",
+    "latent": "infected population number"
+}
+RATE_TITLES = {
+    "prevalence": "prevalence per 100,000",
+    "incidence": "incidence per 100,000 per year",
+    "notifications": "notifications per 100,000 per year",
+    "deaths": "deaths per 100,000 per year",
+    "latent": "percentage with latent infection"
+}
+
+
+def plot_outputs(
+    prev: pd.DataFrame, 
+    inc: pd.DataFrame, 
+    notif: pd.DataFrame,
+    notif_target: pd.Series,
+    tb_death: pd.DataFrame,
+    death_target: pd.Series,
+    latent: pd.DataFrame,
+    latent_target: pd.Series,
+    total_pop: pd.DataFrame,
+    plot_start: float,
+    end_time: float,
+    mode: str,
+) -> plt.figure:
+    """Plot outputs from multiple model runs.
+
+    Args:
+        prev: Prevalence data
+        inc: Incidence data
+        notif: Notification data
+        notif_target: Notification target - a count (i.e. cases per year)
+        tb_death: Death data
+        death_target: Deaths target - a count (i.e. deaths per year)
+        latent: Latent data
+        latent_target: Latent target - a percentage
+        total_pop: Population size data
+        plot_start: Year to plot from
+        end_time: End of simulation run
+        mode: Whether to plot counts or rates
+
+    Returns:
+        The figure
+    """
+    fig, axes = plt.subplots(3, 2, figsize=[12, 10], sharex=True)
+    if mode == "count":
+        titles = COUNT_TITLES
+        notif_target.plot(ax=axes[1, 0], linewidth=0.0, marker="o", color="k")
+        death_target.plot(ax=axes[1, 1], linewidth=0.0, marker="o", color="k")
+        data = {
+            "prevalence": prev,
+            "incidence": inc,
+            "notifications": notif,
+            "deaths": tb_death,
+            "latent": latent,
+        }
+
+    elif mode == "rate":
+        titles = RATE_TITLES
+        latent_target.plot(ax=axes[2, 0], linewidth=0.0, marker="o", color="k")
+        data = {
+            "prevalence": prev.div(total_pop, axis=0) * 1e5,
+            "incidence": inc.div(total_pop, axis=0) * 1e5,
+            "notifications": notif.div(total_pop, axis=0) * 1e5,
+            "deaths": tb_death.div(total_pop, axis=0) * 1e5,
+            "latent": latent.div(total_pop, axis=0) * 1e2,
+        }
+    else:
+        raise ValueError(f"Unknown mode '{mode}'. Expected 'count' or 'rate'.")
+
+
+    ax_locs = {
+        "prevalence": axes[0, 0],
+        "incidence": axes[0, 1],
+        "notifications": axes[1, 0],
+        "deaths": axes[1, 1],
+        "latent": axes[2, 0],
+    }
+
+    for out in ax_locs:
+        data_to_plot = data[out]
+        data_to_plot[data_to_plot.index > plot_start].plot(
+            ax=ax_locs[out], 
+            title=titles[out], 
+            legend=False, 
+            xlim=[plot_start, end_time - 1],
+        )
+    axes[2, 1].set_axis_off()
+
+    for ax in axes.ravel():
+        ax.set_ylim(bottom=0.0)
+    fig.tight_layout()
+    return fig
