@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Data previously obtained from the Vietnam NTP by Long
-notif_target = pd.Series(
+NOTIF_TARGET = pd.Series(
     {
         2011: 100518,
         2012: 103906,
@@ -18,7 +18,7 @@ notif_target = pd.Series(
         2023: 104517,
     }
 )
-latent_target = pd.Series(
+LATENT_TARGET = pd.Series(
     {
         2019: 43.0,
     }
