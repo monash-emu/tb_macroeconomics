@@ -1,3 +1,4 @@
+from typing import Tuple
 import re
 import numpy as np
 import pandas as pd
@@ -331,3 +332,63 @@ def get_country_indicators(
     country_data = data[data["iso3"] == iso3]
     country_data.index = country_data["year"]
     return country_data
+
+
+def load_demography(
+    iso3: str,
+) -> Tuple[pd.DataFrame]:
+    """Load the demographic model inputs using the functions above.
+
+    Args:
+        iso3: The country identifier
+
+    Returns:
+        The data
+    """
+    pop_data = get_country_pop(iso3)
+    single_age_pops = get_single_age_pop_from_ungroups(pop_data)
+    group_popsize = get_group_popsizes(single_age_pops)
+    mort_data = get_un_mortality(iso3)
+    death_rates = mort_data.div(group_popsize, axis=0).dropna()
+    add_groups_to_single_pop(single_age_pops)
+    age_weights = build_age_weight_lookup(single_age_pops)
+    return group_popsize, death_rates, age_weights
+
+
+def load_fertility(
+    iso3: str,
+) -> pd.DataFrame:
+    """Load the fertility dataframe and pad with
+    zeroes for ages not covered.
+
+    Args:
+        iso3: The country identifier
+
+    Returns:
+        The data
+    """
+    fert = get_fertility_data(iso3)
+    return fert.reindex(columns=range(MAX_AGE + 1), fill_value=0.0)
+
+
+def load_who_outcomes(
+    iso3: str,
+) -> Tuple[pd.Series]:
+    """Load the WHO treatment outcome data using the functions above.
+
+    Args:
+        iso3: The country identifier
+
+    Returns:
+        The data
+    """
+    raw_outcome_data = pd.read_csv(DATA_PATH / "who/who_outcomes_20260514T0437Z.csv")
+    outcome_data = raw_outcome_data[raw_outcome_data["iso3"] == iso3]
+    tsr = calc_tsr_from_outcomes(outcome_data)
+    death_in_unsucc = calc_death_in_unsucc_outcomes(outcome_data)
+    who_indicators = get_country_indicators(iso3)
+    who_mort = (
+        who_indicators["e_mort_tbhiv_num"] + who_indicators["e_mort_exc_tbhiv_num"]
+    )
+
+    return tsr, death_in_unsucc, who_mort
