@@ -35,7 +35,15 @@ LATENT_STATES = [s for s in ALL_COMPARTMENTS if s != "mtb_naive"]
 # Age-related
 AGE_STRATA = [0, 3, 5, 10, 15, 18, 40, 65]
 MAX_AGE = 120
+YOUNG_END_AGE = 15
 
 # Paths
 BASE_PATH = Path(__file__).parent.parent.parent.parent
 DATA_PATH = BASE_PATH / "data"
+
+# Country
+ISO3 = "VNM"
+
+# Times
+START_TIME = 1800.0
+END_TIME = 2101.0
