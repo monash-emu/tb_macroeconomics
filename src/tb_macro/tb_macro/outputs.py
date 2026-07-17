@@ -7,20 +7,6 @@ from summer3.epi import ManagedArray, Stratification
 from tb_macro.constants import PREV_STATES, LATENT_STATES
 
 
-def get_total_pop(
-    results: dict,
-) -> ManagedArray:
-    """Get the total modelled population.
-
-    Args:
-        results: Single run results
-
-    Returns:
-        Total population over time
-    """
-    return results["compartments"].sum(to_dims="time")
-
-
 def get_complete_strat_props(
     results: dict,
     strat: Stratification,
@@ -36,7 +22,7 @@ def get_complete_strat_props(
         The proportional population distribution
     """
     vals = results["compartments"].sumcats(compartment=strat.categories())
-    return vals / get_total_pop(results)
+    return vals / results["compartments"].sum(to_dims="time")
 
 
 def get_partial_strat_props(
@@ -86,7 +72,9 @@ def get_age_prev(results, age_strat, disease_state):
 
 
 def get_age_latent(results, age_strat, disease_state):
-    latent_states = results["compartments"].query(compartment=disease_state[LATENT_STATES])
+    latent_states = results["compartments"].query(
+        compartment=disease_state[LATENT_STATES]
+    )
     return latent_states.sumcats(compartment=age_strat.categories())
 
 
@@ -95,9 +83,11 @@ def get_age_notifs(results, age_strat, disease_state):
 
 
 def get_age_deaths(results, age_strat, disease_state):
-    community_death_age = results["flows"]["tb_mortality"].sumcats(source=age_strat.categories())
+    community_death_age = results["flows"]["tb_mortality"].sumcats(
+        source=age_strat.categories()
+    )
     rx_death_age = results["flows"]["rx_death"].sumcats(source=age_strat.categories())
-    return (community_death_age + rx_death_age)
+    return community_death_age + rx_death_age
 
 
 def get_total_pop(results, age_strat, disease_state):
