@@ -11,8 +11,21 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Parameter, Time, CompartmentValues
 from summer3.epi import Category, CategoryData, ManagedArray, CategoryGroup, StratSpec
+from tb_macro.demography import (
+    add_replacement_deaths,
+    add_ageing_flows,
+    add_entry_births,
+)
+from tb_macro.health_system import add_treatment_flows, add_detection
 from summer3.arrayops import mul_ma_catdata
-from tb_macro.constants import ALL_COMPARTMENTS, AGE_STRATA, INF_STRATA, INFECT_COMPS
+from tb_macro.constants import (
+    ALL_COMPARTMENTS,
+    AGE_STRATA,
+    INF_STRATA,
+    INFECT_COMPS,
+    START_TIME,
+    YOUNG_END_AGE,
+)
 from tb_macro.utils import get_triang_vals
 from tb_macro.mixing import get_norm_c_matrix
 
@@ -339,3 +352,64 @@ def add_latency_flows(
         defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0))
     )
     epi_model.add_flow(prog)
+
+
+def add_flows_to_model(
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    clin_strat: Stratification,
+    infect_strat: Stratification,
+    age_weights: pd.DataFrame,
+    group_popsize: pd.DataFrame,
+    fert_padded: pd.DataFrame,
+    death_rates,
+    tsr,
+    death_in_unsucc,
+    entry_times,
+    entry_rates,
+):
+    """Add the transition flows to the TB model.
+
+    Args:
+        epi_model: The epidemiological model
+        disease_state: The disease state compartments
+        age_strat: The age stratification object
+        clin_strat: The clinical stratification
+        infect_strat: The infectiousness stratification
+        age_weights: The age weights for the mixing matrix
+        group_popsize: The population data
+        fert_padded: The fertility data for the mixing matrix
+    """
+    add_infection_flows(
+        epi_model,
+        disease_state,
+        age_strat,
+        clin_strat,
+        infect_strat,
+        age_weights,
+        group_popsize,
+        fert_padded,
+        YOUNG_END_AGE,
+        START_TIME,
+    )
+    add_natural_history(epi_model, disease_state, age_strat, clin_strat, infect_strat)
+    add_ageing_flows(epi_model, age_strat)
+    add_seeding(epi_model, disease_state, START_TIME)
+    add_detection(epi_model, disease_state, clin_strat, START_TIME)
+    add_replacement_deaths(epi_model, disease_state, age_strat, death_rates, START_TIME)
+    add_entry_births(
+        epi_model, disease_state, age_strat, START_TIME, entry_rates, entry_times
+    )
+    add_treatment_flows(
+        death_rates,
+        START_TIME,
+        epi_model,
+        disease_state,
+        age_strat,
+        infect_strat,
+        clin_strat,
+        tsr,
+        death_in_unsucc,
+    )
+    add_latency_flows(epi_model, disease_state, age_strat, clin_strat, infect_strat)
