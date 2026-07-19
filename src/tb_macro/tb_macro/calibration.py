@@ -3,6 +3,8 @@ from jax import jit
 from numpyro import distributions as dist
 import diffrax as dfx
 
+from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
+
 from tb_macro.constants import LATENT_STATES
 
 
@@ -58,3 +60,12 @@ def make_log_likelihood(
         )
 
     return get_log_likelihood
+
+
+def get_runner(epi_model):
+    istate = build_istate(epi_model.cmap, epi_model.base_pops, epi_model.pop_splits)
+    cmodel = CompartmentalModelODE(epi_model.cmap, epi_model.flows)
+    runner = cmodel.get_runner(
+        len(epi_model.times), dti_to_epoch(epi_model.times), True
+    )
+    return runner, istate
