@@ -363,11 +363,11 @@ def add_flows_to_model(
     age_weights: pd.DataFrame,
     group_popsize: pd.DataFrame,
     fert_padded: pd.DataFrame,
-    death_rates,
-    tsr,
-    death_in_unsucc,
-    entry_times,
-    entry_rates,
+    death_rates: pd.DataFrame,
+    tsr: pd.Series,
+    death_in_unsucc: pd.Series,
+    entry_times: np.array,
+    entry_rates: np.array,
 ):
     """Add the transition flows to the TB model.
 
@@ -380,6 +380,10 @@ def add_flows_to_model(
         age_weights: The age weights for the mixing matrix
         group_popsize: The population data
         fert_padded: The fertility data for the mixing matrix
+        death_rates: The per capita death rates
+        tsr: Treatment success rate
+        entry_times: Entry years
+        entry_rates: Calculated entry rates to match population
     """
     add_infection_flows(
         epi_model,
