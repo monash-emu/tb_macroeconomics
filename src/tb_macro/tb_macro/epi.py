@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List
 from collections import namedtuple
 import numpy as np
 from jax import numpy as jnp
@@ -8,6 +8,7 @@ from summer3.epi import (
     CompartmentalEpiModel,
     CompartmentMap,
     Stratification,
+    strat_data_from_pandas,
 )
 from summer3.graph import defer, Parameter, Time, CompartmentValues
 from summer3.epi import Category, CategoryData, ManagedArray, CategoryGroup, StratSpec
@@ -417,3 +418,28 @@ def add_flows_to_model(
         death_in_unsucc,
     )
     add_latency_flows(epi_model, disease_state, age_strat, clin_strat, infect_strat)
+
+
+def initialise_pops(
+    epi_model: CompartmentalEpiModel,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    start_apops: List[float],
+):
+    """Initialise the model population
+
+    Args:
+        epi_model: The epidemiological model
+        disease_state: The disease state compartments
+        age_strat: The age stratification object
+        start_apops: The population distribution by age
+    """
+    init_apops_series = pd.Series(
+        index=[str(a) for a in AGE_STRATA], data=np.array(start_apops)
+    )
+    init_apops = strat_data_from_pandas(init_apops_series, age_strat)
+    init_dpops = [0.0] * len(ALL_COMPARTMENTS)
+    init_dpops[ALL_COMPARTMENTS.index("mtb_naive")] = 1.0
+    pop_splits = [CategoryData(disease_state.categories(), jnp.array((init_dpops)))]
+    epi_model.set_initial_population(init_apops, pop_splits)
+    epi_model.computed_values.append("dynamic_mm")
