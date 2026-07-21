@@ -6,15 +6,13 @@ import diffrax as dfx
 from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
 
 from tb_macro.constants import LATENT_STATES
+from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
 
 def make_log_likelihood(
     epi_model,
     disease_state,
     solver_kwargs,
-    latent_date,
-    latent_target_val,
-    notif_target,
     who_mort,
 ):
 
@@ -22,6 +20,8 @@ def make_log_likelihood(
     def get_log_likelihood(params):
         results = epi_model.run(params, solver_kwargs=solver_kwargs)
 
+        latent_date = LATENT_TARGET.index[0]
+        latent_target_val = LATENT_TARGET.iloc[0] / 1e2
         latent = (
             results["compartments"]
             .query(compartment=disease_state[LATENT_STATES], time=latent_date)
@@ -33,11 +33,11 @@ def make_log_likelihood(
 
         notif = (
             results["flows"]["detection"]
-            .query(time=notif_target.index)
+            .query(time=NOTIF_TARGET.index)
             .sum(to_dims="time")
             .data
         )
-        notif_ll = dist.Normal(notif_target.to_numpy(), 5e3).log_prob(notif).mean()
+        notif_ll = dist.Normal(NOTIF_TARGET.to_numpy(), 5e3).log_prob(notif).mean()
 
         community_deaths = (
             results["flows"]["tb_mortality"]
