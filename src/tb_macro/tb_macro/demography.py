@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 import numpy as np
 import pandas as pd
 from jax import numpy as jnp, vmap
@@ -25,19 +25,21 @@ def make_multi_interp_array_func(
     Returns:
         The interpolated array function
     """
+
     def interp_single_age(t, age_rates):
         sim_time = t + start_time
-        return jnp.interp(sim_time, times, age_rates, left=age_rates[0], right=age_rates[-1])
+        return jnp.interp(
+            sim_time, times, age_rates, left=age_rates[0], right=age_rates[-1]
+        )
 
-    interp_all_ages = vmap(interp_single_age, in_axes=(None, 1)) # No axis for time, columns for age
+    interp_all_ages = vmap(
+        interp_single_age, in_axes=(None, 1)
+    )  # No axis for time, columns for age
     return lambda t: interp_all_ages(t, rates)
 
 
 def make_multi_interp_func(
-    times: np.array,
-    rates: np.array,
-    start_time: float,
-    age_strat: Stratification
+    times: np.array, rates: np.array, start_time: float, age_strat: Stratification
 ) -> callable:
     """Create a function that can return a vector of values
     pertaining to each modelled age group given some input data
@@ -78,7 +80,9 @@ def add_replacement_deaths(
     death_func = make_multi_interp_func(death_times, death_vals, start_time, age_strat)
     source = (disease_state[disease_state.strata], age_strat[age_strat.strata])
     dest = (disease_state["mtb_naive"], age_strat["0"])
-    replacement_deaths = TransitionFlow("replacement_deaths", source, dest, defer(death_func)(Time))
+    replacement_deaths = TransitionFlow(
+        "replacement_deaths", source, dest, defer(death_func)(Time)
+    )
     epi_model.add_flow(replacement_deaths)
 
 
@@ -149,6 +153,7 @@ def get_birth_rate_func(
     Returns:
         The birth rate function
     """
+
     def birth_rate_func(model_time):
         time = model_time + start_time
         idx = jnp.searchsorted(times, time)
@@ -181,3 +186,60 @@ def add_entry_births(
     dest = (disease_state["mtb_naive"], age_strat["0"])
     entry_rate = EntryFlow("entry_births", dest, defer(birth_func)(Time))
     epi_model.add_flow(entry_rate)
+
+
+def assign_age_groups(
+    pops: pd.DataFrame,
+    breaks: List[int],
+    name: str,
+):
+    """Classify single year ages into age groups
+    and add this information to the population data argument.
+
+    Args:
+        pops: Population sizes (or any data) by single years of age
+        breaks: The age group breakpoints
+        name: The name for the newly created column
+    """
+    break_ints = [int(a) for a in breaks]
+    bins = break_ints + [np.inf]
+    pops[name] = pd.cut(pops["Age"], bins=bins, right=False, labels=break_ints)
+
+
+def build_age_mapping(
+    pops: pd.DataFrame,
+    m_group_name: str,
+    o_group_name: str,
+) -> pd.DataFrame:
+    """Calculate the fraction of each modelled age group
+    that should be assigned to each output age group.
+
+    Args:
+        pops: Population sizes by single years of age,
+            including mapping of modelled and output age groups
+        m_group_name: The column name for the modelled age group mapping
+        o_group_name: The column name for the output age group mapping
+
+    Returns:
+        The mapping object
+    """
+    pops = pops.copy()
+
+    # Total population overlapping between the two age groups specified in the modelled and output columns
+    overlaps = (
+        pops.groupby(["Time", m_group_name, o_group_name])["Pop"].sum().reset_index()
+    )
+
+    # Calculate the denominator - the population in the modelled age group
+    model_totals = pops.groupby(["Time", m_group_name])["Pop"].sum().reset_index()
+
+    # Assign the denominators to every row of the overlaps object
+    mapping = overlaps.merge(
+        model_totals, on=["Time", m_group_name], suffixes=("_overlap", "_model")
+    )
+
+    # Calculate the fraction of each modelled age group to assign to the output age group
+    mapping["fraction"] = mapping["Pop_overlap"] / mapping["Pop_model"]
+
+    relevant_cols = ["Time", m_group_name, o_group_name, "fraction"]
+    return mapping[relevant_cols]
