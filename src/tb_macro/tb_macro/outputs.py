@@ -1,3 +1,5 @@
+from typing import List, Dict
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, UTC
@@ -92,3 +94,39 @@ def get_age_deaths(results, age_strat, disease_state):
 
 def get_total_pop(results, age_strat, disease_state):
     return results["compartments"].sum(to_dims="time")
+
+
+def get_posterior_samples(idata, n_samples):
+    posterior = idata.posterior.stack(sample=("chain", "draw"))
+    idxs = np.random.choice(posterior.sizes["sample"], size=n_samples, replace=False)
+    return posterior.isel(sample=idxs)
+
+
+def collate_output_table(
+    outputs: List[Dict[str, List[pd.DataFrame]]],
+    sample_labels: List[str],
+) -> pd.DataFrame:
+    """Collate the raw outputs that are structured as
+    list with elements representing scenarios
+        dict with keys representing indicators
+            list with elements representing samples
+                dataframe with columns representing age groups
+    into one multi-indexed dataframe.
+
+    Args:
+        outputs: The outputs in raw form
+        sample_labels: The names of the samples (chain and draw numbers linked together)
+
+    Returns:
+        The full output dataframe
+    """
+    n_scenarios = len(outputs)
+    indicators = list(outputs[0])
+    full_outs = []
+    for s in range(n_scenarios):
+        scen_outs = []
+        for out in indicators:
+            output = outputs[s][out]
+            scen_outs.append(pd.concat(output, axis=1, keys=sample_labels, names=["sample"]))
+        full_outs.append(pd.concat(scen_outs, axis=1, keys=indicators, names=["indicator"]))
+    return pd.concat(full_outs, axis=1, keys=range(n_scenarios), names=["scenario"])
