@@ -241,5 +241,7 @@ def build_age_mapping(
     # Calculate the fraction of each modelled age group to assign to the output age group
     mapping["fraction"] = mapping["Pop_overlap"] / mapping["Pop_model"]
 
+    # Tidy up
     relevant_cols = ["Time", m_group_name, o_group_name, "fraction"]
+    mapping[m_group_name] = mapping[m_group_name].astype(str)
     return mapping[relevant_cols]
