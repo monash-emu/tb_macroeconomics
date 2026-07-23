@@ -3,10 +3,12 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, UTC
+from arviz import InferenceData
+from xarray.core import dataset
 
-from summer3.epi import ManagedArray, Stratification
-
-from tb_macro.constants import PREV_STATES, LATENT_STATES, AGE_STRATA
+from summer3.epi import ManagedArray, Stratification, CompartmentalEpiModel
+from tb_macro.constants import PREV_STATES, LATENT_STATES, AGE_STRATA, SOLVER_KWARGS
+from tb_macro.parameters import BASE_PARAMS
 
 
 def get_complete_strat_props(
@@ -228,18 +230,26 @@ def regroup_output(
     Returns:
         The regrouped output
     """
+
+    # Convert output to long form
     out_long = output.reset_index(names="Time").melt(
         id_vars="Time", var_name="model_agegroup", value_name="value"
     )
+
+    # Calculate weights for each modelled age group to each output age group
     weighted = out_long.merge(mapping, on=["Time", "model_agegroup"])
+
+    # Multiply output value through by weight
     weighted["value"] *= weighted["fraction"]
-    regrouped = (
-        weighted.groupby(["Time", "output_agegroup"])["value"].sum().reset_index()
-    )
+
+    # Group together to get final values
+    regrouped = weighted.groupby(["Time", "output_agegroup"])["value"].sum().reset_index()
+
+    # Convert back to wide form
     return regrouped.pivot(index="Time", columns="output_agegroup", values="value")
 
 
-def map_regroup_output(
+def map_and_regroup_output(
     output: pd.DataFrame,
     single_age_pops: pd.DataFrame,
     out_groups: List[int],
@@ -254,15 +264,20 @@ def map_regroup_output(
     Returns:
         The restructured data
     """
+
+    # Add columns for the modelled and output age groups corresponding to each single year age
     assign_age_groups(single_age_pops, output.columns, "model_agegroup")
     assign_age_groups(single_age_pops, out_groups, "output_agegroup")
+
+    # Create the mapping object
     mapping = build_age_mapping(single_age_pops, "model_agegroup", "output_agegroup")
+
+    # Regroup the output according to the mapping
     return regroup_output(output, mapping)
 
 
 def regroup_full_outputs(
     outputs: List[Dict[str, List[pd.DataFrame]]],
-    regrouped_outputs: List[Dict[str, List[pd.DataFrame]]],
     single_age_pops: pd.DataFrame,
     out_groups: List[int],
 ) -> List[Dict[str, List[pd.DataFrame]]]:
@@ -272,21 +287,66 @@ def regroup_full_outputs(
 
     Args:
         outputs: The outputs structured by modelled age groups
-        regrouped_outputs: The empty output structure to populate
         single_age_pops: The population data in single year age groups
         out_groups: The requested output age breakpoints
 
     Returns:
         The regrouped outputs
     """
+
+    # Create empty data structure
+    regrouped_outs = [{out: [] for out in outputs[0]} for _ in range(len(outputs))]
+
+    # Iterate through outputs with model age groups to populate regrouped data
     for s, scenario_outputs in enumerate(outputs):
         for ind, raw_outputs in scenario_outputs.items():
             for output in raw_outputs:
-                if output.columns.name == "age_group":
-                    regrouped_output = map_regroup_output(
-                        output, single_age_pops, out_groups
-                    )
-                else:
-                    regrouped_output = output
-                regrouped_outputs[s][ind].append(regrouped_output)
-    return regrouped_outputs
+                regrouped_out = map_and_regroup_output(output, single_age_pops, out_groups) if output.columns.name == "age_group" else output
+                regrouped_outs[s][ind].append(regrouped_out)
+    return regrouped_outs
+
+
+def rerun_model_for_outputs(
+    epi_model: CompartmentalEpiModel,
+    age_strat: Stratification,
+    disease_state: Stratification,
+    idata: InferenceData,
+    scen_params: List[Dict[str, float]],
+    samples: dataset,
+):
+    """Re-run epi model with scenario parameters
+    to get main outputs using accepted parameter values.
+
+    Args:
+        epi_model: The epidemiological model
+        age_strat: The age stratification object
+        disease_state: The compartmental stratification object
+        idata: The inference data object
+        scen_params: The scenario parameters
+        samples: The parameter samples
+
+    Returns:
+        The sampled model outputs
+    """
+    indicator_funcs = {
+        "incidence": get_age_inc,
+        "prevalence": get_age_prev,
+        "latent": get_age_latent,
+        "notifications": get_age_notifs,
+        "deaths": get_age_deaths,
+        "total_pop": get_total_pop,
+    }
+    sample_labels = []
+    outputs = [{out: [] for out in indicator_funcs} for _ in scen_params]
+    for i in range(samples.sizes["sample"]):
+        run = f"chain_{int(samples['chain'][i])}/draw_{int(samples['draw'][i])}"
+        sample_labels.append(run)
+        c_params = {k: float(samples[k].isel(sample=i)) for k in idata.posterior.data_vars}
+        for s, s_params in enumerate(scen_params):
+            results = epi_model.run(BASE_PARAMS | c_params | s_params, solver_kwargs=SOLVER_KWARGS)
+            for ind, func in indicator_funcs.items():
+                output = func(results, age_strat, disease_state).to_pandas_df()
+                if is_age_stratified_output(output):
+                    output.columns.name = "age_group"
+                outputs[s][ind].append(output)
+    return outputs, sample_labels
