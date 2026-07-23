@@ -6,7 +6,7 @@ from datetime import datetime, UTC
 
 from summer3.epi import ManagedArray, Stratification
 
-from tb_macro.constants import PREV_STATES, LATENT_STATES
+from tb_macro.constants import PREV_STATES, LATENT_STATES, AGE_STRATA
 
 
 def get_complete_strat_props(
@@ -127,6 +127,166 @@ def collate_output_table(
         scen_outs = []
         for out in indicators:
             output = outputs[s][out]
-            scen_outs.append(pd.concat(output, axis=1, keys=sample_labels, names=["sample"]))
-        full_outs.append(pd.concat(scen_outs, axis=1, keys=indicators, names=["indicator"]))
+            scen_outs.append(
+                pd.concat(output, axis=1, keys=sample_labels, names=["sample"])
+            )
+        full_outs.append(
+            pd.concat(scen_outs, axis=1, keys=indicators, names=["indicator"])
+        )
     return pd.concat(full_outs, axis=1, keys=range(n_scenarios), names=["scenario"])
+
+
+def is_age_stratified_output(
+    output: pd.DataFrame,
+) -> bool:
+    """Determine whether single output dataframe is
+    stratified by age.
+
+    Args:
+        output: The output data
+
+    Returns:
+        Age stratification status
+    """
+    age_labels = {str(a) for a in AGE_STRATA}
+    return (
+        len(output.columns) == len(age_labels)
+        and {str(col) for col in output.columns} == age_labels
+    )
+
+
+def assign_age_groups(
+    pops: pd.DataFrame,
+    breaks: List[int],
+    name: str,
+):
+    """Classify single year ages into age groups
+    and add this information to the population data argument.
+
+    Args:
+        pops: Population sizes (or any data) by single years of age
+        breaks: The age group breakpoints
+        name: The name for the newly created column
+    """
+    break_ints = [int(a) for a in breaks]
+    bins = break_ints + [np.inf]
+    pops[name] = pd.cut(pops["Age"], bins=bins, right=False, labels=break_ints)
+
+
+def build_age_mapping(
+    pops: pd.DataFrame,
+    m_group_name: str,
+    o_group_name: str,
+) -> pd.DataFrame:
+    """Calculate the fraction of each modelled age group
+    that should be assigned to each output age group.
+
+    Args:
+        pops: Population sizes by single years of age,
+            including mapping of modelled and output age groups
+        m_group_name: The column name for the modelled age group mapping
+        o_group_name: The column name for the output age group mapping
+
+    Returns:
+        The mapping object
+    """
+    pops = pops.copy()
+
+    # Total population overlapping between the two age groups specified in the modelled and output columns
+    overlaps = (
+        pops.groupby(["Time", m_group_name, o_group_name])["Pop"].sum().reset_index()
+    )
+
+    # Calculate the denominator - the population in the modelled age group
+    model_totals = pops.groupby(["Time", m_group_name])["Pop"].sum().reset_index()
+
+    # Assign the denominators to every row of the overlaps object
+    mapping = overlaps.merge(
+        model_totals, on=["Time", m_group_name], suffixes=("_overlap", "_model")
+    )
+
+    # Calculate the fraction of each modelled age group to assign to the output age group
+    mapping["fraction"] = mapping["Pop_overlap"] / mapping["Pop_model"]
+
+    # Tidy up
+    relevant_cols = ["Time", m_group_name, o_group_name, "fraction"]
+    mapping[m_group_name] = mapping[m_group_name].astype(str)
+    return mapping[relevant_cols]
+
+
+def regroup_output(
+    output: pd.DataFrame,
+    mapping: pd.DataFrame,
+) -> pd.DataFrame:
+    """Use mapping from modelled to output
+    age groups to regroup output.
+
+    Args:
+        output: The output with age groups assigned
+        mapping: The mapping object from modelled to output age groups
+
+    Returns:
+        The regrouped output
+    """
+    out_long = output.reset_index(names="Time").melt(
+        id_vars="Time", var_name="model_agegroup", value_name="value"
+    )
+    weighted = out_long.merge(mapping, on=["Time", "model_agegroup"])
+    weighted["value"] *= weighted["fraction"]
+    regrouped = (
+        weighted.groupby(["Time", "output_agegroup"])["value"].sum().reset_index()
+    )
+    return regrouped.pivot(index="Time", columns="output_agegroup", values="value")
+
+
+def map_regroup_output(
+    output: pd.DataFrame,
+    single_age_pops: pd.DataFrame,
+    out_groups: List[int],
+) -> pd.DataFrame:
+    """Take an output structured by modelled age
+    and restructure according to
+    requested output age groups.
+
+    Args:
+        output: The output data
+
+    Returns:
+        The restructured data
+    """
+    assign_age_groups(single_age_pops, output.columns, "model_agegroup")
+    assign_age_groups(single_age_pops, out_groups, "output_agegroup")
+    mapping = build_age_mapping(single_age_pops, "model_agegroup", "output_agegroup")
+    return regroup_output(output, mapping)
+
+
+def regroup_full_outputs(
+    outputs: List[Dict[str, List[pd.DataFrame]]],
+    regrouped_outputs: List[Dict[str, List[pd.DataFrame]]],
+    single_age_pops: pd.DataFrame,
+    out_groups: List[int],
+) -> List[Dict[str, List[pd.DataFrame]]]:
+    """Take the full outputs data structure and apply
+    the regrouping process to each internal element
+    to get the raw regrouped outputs structure.
+
+    Args:
+        outputs: The outputs structured by modelled age groups
+        regrouped_outputs: The empty output structure to populate
+        single_age_pops: The population data in single year age groups
+        out_groups: The requested output age breakpoints
+
+    Returns:
+        The regrouped outputs
+    """
+    for s, scenario_outputs in enumerate(outputs):
+        for ind, raw_outputs in scenario_outputs.items():
+            for output in raw_outputs:
+                if output.columns.name == "age_group":
+                    regrouped_output = map_regroup_output(
+                        output, single_age_pops, out_groups
+                    )
+                else:
+                    regrouped_output = output
+                regrouped_outputs[s][ind].append(regrouped_output)
+    return regrouped_outputs
