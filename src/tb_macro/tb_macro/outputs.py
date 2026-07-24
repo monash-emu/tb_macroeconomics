@@ -301,7 +301,10 @@ def regroup_full_outputs(
     for s, scenario_outputs in enumerate(outputs):
         for ind, raw_outputs in scenario_outputs.items():
             for output in raw_outputs:
-                regrouped_out = map_and_regroup_output(output, single_age_pops, out_groups) if output.columns.name == "age_group" else output
+                if output.columns.name == "age_group":
+                    regrouped_out = map_and_regroup_output(output, single_age_pops, out_groups)
+                else:
+                    regrouped_out = output.loc[single_age_pops["Time"].min():]
                 regrouped_outs[s][ind].append(regrouped_out)
     return regrouped_outs
 
