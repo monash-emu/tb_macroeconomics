@@ -98,6 +98,10 @@ def get_total_pop(results, age_strat, disease_state):
     return results["compartments"].sum(to_dims="time")
 
 
+def get_age_pop(results, age_strat, disease_state):
+    return results["compartments"].sumcats(compartment=age_strat.categories())
+
+
 def get_posterior_samples(idata, n_samples):
     posterior = idata.posterior.stack(sample=("chain", "draw"))
     idxs = np.random.choice(posterior.sizes["sample"], size=n_samples, replace=False)
@@ -129,13 +133,11 @@ def collate_output_table(
         scen_outs = []
         for out in indicators:
             output = outputs[s][out]
-            scen_outs.append(
-                pd.concat(output, axis=1, keys=sample_labels, names=["sample"])
-            )
-        full_outs.append(
-            pd.concat(scen_outs, axis=1, keys=indicators, names=["indicator"])
-        )
-    return pd.concat(full_outs, axis=1, keys=range(n_scenarios), names=["scenario"])
+            scen_outs.append(pd.concat(output, axis=1, keys=sample_labels, names=["sample"]))
+        full_outs.append(pd.concat(scen_outs, axis=1, keys=indicators, names=["indicator"]))
+    full_outs = pd.concat(full_outs, axis=1, keys=range(n_scenarios), names=["scenario"])
+    full_outs.columns = full_outs.columns.rename("agegroup", level=-1)
+    return full_outs
 
 
 def is_age_stratified_output(
@@ -337,7 +339,7 @@ def rerun_model_for_outputs(
         "latent": get_age_latent,
         "notifications": get_age_notifs,
         "deaths": get_age_deaths,
-        "total_pop": get_total_pop,
+        "age_pop": get_age_pop,
     }
     sample_labels = []
     outputs = [{out: [] for out in indicator_funcs} for _ in scen_params]
