@@ -1,15 +1,12 @@
 from typing import Tuple, List
 import numpy as np
 import pandas as pd
-from jax import numpy as jnp, vmap
+from jax import numpy as jnp
 
 from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow, EntryFlow
 from summer3.graph import defer, Time
 
 from tb_macro.constants import AGE_STRATA
-
-from jax import vmap
-import jax.numpy as jnp
 
 
 def make_single_interp_func(
@@ -87,17 +84,14 @@ def add_replacement_deaths(
         start_time: Model start time
     """
     death_times = np.array(death_rates.index)
-    # death_vals = np.array(death_rates)
     dest = (disease_state["mtb_naive"], age_strat["0"])
     for age in AGE_STRATA:
         age_str = str(age)
-        age_rates = death_rates[age]
+        age_rates = death_rates[age].to_numpy()
         source = age_strat[age_str]
         death_func = make_single_interp_func(death_times, age_rates, start_time)
-        replacement_deaths = TransitionFlow(
-            f"replacement_deaths_{age_str}", source, dest, 1.0
-        )
-
+        death_name = f"replacement_deaths_{age_str}"
+        replacement_deaths = TransitionFlow(death_name, source, dest, defer(death_func)(Time))
         epi_model.add_flow(replacement_deaths)
 
 
