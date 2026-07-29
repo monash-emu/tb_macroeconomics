@@ -87,10 +87,10 @@ def add_replacement_deaths(
     dest = (disease_state["mtb_naive"], age_strat["0"])
     for age in AGE_STRATA:
         age_str = str(age)
-        age_rates = death_rates[age].to_numpy()
+        rates = death_rates[age].to_numpy()
         source = age_strat[age_str]
-        death_func = make_single_interp_func(death_times, age_rates, start_time)
-        death_name = f"replacement_deaths_{age_str}"
+        death_func = make_single_interp_func(death_times, rates, start_time)
+        death_name = f"nontb_deaths_{age_str}"
         replacement_deaths = TransitionFlow(death_name, source, dest, defer(death_func)(Time))
         epi_model.add_flow(replacement_deaths)
 

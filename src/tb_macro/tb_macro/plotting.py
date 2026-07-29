@@ -191,3 +191,26 @@ def plot_outputs(
         ax.set_ylim(bottom=0.0)
     fig.tight_layout()
     return fig
+
+
+def plot_age_population_comparison(results, target_pop, age_strat, year):
+    modelled = (
+        results["compartments"]
+        .sumcats(compartment=age_strat.categories())
+        .to_pandas_df()
+        .loc[year]
+        .astype(float)
+    )
+ 
+    target = target_pop.loc[year].astype(float)
+    target.index = target.index.astype(str)
+
+    df = pd.DataFrame(
+        {"age_group": target.index, "Target": target.values, "Modelled": modelled.reindex(target.index).values}
+    )
+    plot_df = df.melt(id_vars="age_group", var_name="series", value_name="population")
+
+    ax = sns.barplot(data=plot_df, x="age_group", y="population", hue="series", dodge=True)
+    ax.set_title(f"population by age in {int(year)}")
+    return ax
+    
