@@ -158,9 +158,9 @@ def add_treatment_flows(
     death_unsucc_func = defer(death_unsucc_curve)(Time)
 
     # Natural death calculations
-    death_vals = np.array(death_rates.index)
-    death_times = np.array(death_rates)
-    death_array_func = make_multi_interp_array_func(death_vals, death_times, start_time)
+    death_times = np.array(death_rates.index) # FIXME: Does this this need get_scale_data
+    death_vals = np.array(death_rates)
+    death_array_func = make_multi_interp_array_func(death_times, death_vals, start_time)
     death_func = defer(death_array_func)(Time)
 
     # Other common variables

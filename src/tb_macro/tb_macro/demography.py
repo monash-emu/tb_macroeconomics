@@ -8,34 +8,45 @@ from summer3.graph import defer, Time
 
 from tb_macro.constants import AGE_STRATA
 
+from jax import vmap
+import jax.numpy as jnp
 
-def make_multi_interp_array_func(
-    times: np.array,
-    rates: np.array,
+
+def make_single_interp_func(
+    times: jnp.ndarray,
+    rates: jnp.ndarray,
     start_time: float,
 ) -> callable:
-    """Make an unwrapped version of the array interpolation function
-    for multiple functions pertaining to age groups.
+    """Create a single-series interpolation function."""
 
-    Args:
-        times: Time values to use for interpolation
-        rates: Rate values to interpolate, repated for each age group
-        start_time: Model start time
-
-    Returns:
-        The interpolated array function
-    """
-
-    def interp_single_age(t, age_rates):
+    def interp(t):
         sim_time = t + start_time
         return jnp.interp(
-            sim_time, times, age_rates, left=age_rates[0], right=age_rates[-1]
+            sim_time,
+            times,
+            rates,
+            left=rates[0],
+            right=rates[-1],
         )
 
-    interp_all_ages = vmap(
-        interp_single_age, in_axes=(None, 1)
-    )  # No axis for time, columns for age
-    return lambda t: interp_all_ages(t, rates)
+    return interp
+
+
+def make_multi_interp_array_func(
+    times: jnp.ndarray,
+    rates: jnp.ndarray,
+    start_time: float,
+) -> callable:
+
+    age_funcs = [
+        make_single_interp_func(times, rates[:, i], start_time)
+        for i in range(rates.shape[1])
+    ]
+
+    def interp_all_ages(t):
+        return jnp.array([f(t) for f in age_funcs])
+
+    return interp_all_ages
 
 
 def make_multi_interp_func(
@@ -76,14 +87,18 @@ def add_replacement_deaths(
         start_time: Model start time
     """
     death_times = np.array(death_rates.index)
-    death_vals = np.array(death_rates)
-    death_func = make_multi_interp_func(death_times, death_vals, start_time, age_strat)
-    source = (disease_state[disease_state.strata], age_strat[age_strat.strata])
+    # death_vals = np.array(death_rates)
     dest = (disease_state["mtb_naive"], age_strat["0"])
-    replacement_deaths = TransitionFlow(
-        "replacement_deaths", source, dest, defer(death_func)(Time)
-    )
-    epi_model.add_flow(replacement_deaths)
+    for age in AGE_STRATA:
+        age_str = str(age)
+        age_rates = death_rates[age]
+        source = age_strat[age_str]
+        death_func = make_single_interp_func(death_times, age_rates, start_time)
+        replacement_deaths = TransitionFlow(
+            f"replacement_deaths_{age_str}", source, dest, 1.0
+        )
+
+        epi_model.add_flow(replacement_deaths)
 
 
 def add_ageing_flows(
