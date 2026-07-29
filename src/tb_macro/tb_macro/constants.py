@@ -33,7 +33,7 @@ PREV_STATES = [
 LATENT_STATES = [s for s in ALL_COMPARTMENTS if s != "mtb_naive"]
 
 # Age-related
-AGE_STRATA = [0, 10, 20]
+AGE_STRATA = [0, 3, 5, 10, 15, 18, 40, 65]
 MAX_AGE = 120
 YOUNG_END_AGE = 15
 

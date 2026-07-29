@@ -398,26 +398,24 @@ def add_flows_to_model(
         YOUNG_END_AGE,
         START_TIME,
     )
-    # add_natural_history(epi_model, disease_state, age_strat, clin_strat, infect_strat)
-    # add_ageing_flows(epi_model, age_strat)
-    # add_seeding(epi_model, disease_state, START_TIME)
-    # add_detection(epi_model, disease_state, clin_strat, START_TIME)
+    add_natural_history(epi_model, disease_state, age_strat, clin_strat, infect_strat)
+    add_ageing_flows(epi_model, age_strat)
+    add_seeding(epi_model, disease_state, START_TIME)
+    add_detection(epi_model, disease_state, clin_strat, START_TIME)
     add_replacement_deaths(epi_model, disease_state, age_strat, death_rates, START_TIME)
-    # add_entry_births(
-    #     epi_model, disease_state, age_strat, START_TIME, entry_rates, entry_times
-    # )
-    # add_treatment_flows(
-    #     death_rates,
-    #     START_TIME,
-    #     epi_model,
-    #     disease_state,
-    #     age_strat,
-    #     infect_strat,
-    #     clin_strat,
-    #     tsr,
-    #     death_in_unsucc,
-    # )
-    # add_latency_flows(epi_model, disease_state, age_strat, clin_strat, infect_strat)
+    add_entry_births(epi_model, disease_state, age_strat, START_TIME, entry_rates, entry_times)
+    add_treatment_flows(
+        death_rates,
+        START_TIME,
+        epi_model,
+        disease_state,
+        age_strat,
+        infect_strat,
+        clin_strat,
+        tsr,
+        death_in_unsucc,
+    )
+    add_latency_flows(epi_model, disease_state, age_strat, clin_strat, infect_strat)
 
 
 def initialise_pops(
