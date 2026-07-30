@@ -40,6 +40,8 @@ YOUNG_END_AGE = 15
 # Paths
 BASE_PATH = Path(__file__).parent.parent.parent.parent
 DATA_PATH = BASE_PATH / "data"
+OUTPUT_PATH = BASE_PATH / "outputs"
+LOCAL_OUTPUT_PATH = OUTPUT_PATH / "local"
 
 # Country
 ISO3 = "VNM"
