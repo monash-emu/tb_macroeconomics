@@ -129,10 +129,11 @@ def add_natural_history(
     def mort_rates(low_rate, high_rate):
         return infect_strat.categories().wrap(jnp.array([low_rate, high_rate]))
 
-    source = disease_state["active"]
+    source = (disease_state["active"], clin_strat["clin"])
     dest = (disease_state["mtb_naive"], age_strat["0"])
     rate = defer(mort_rates)(
-        Parameter("tb_mortality_rate_lowinf", 0.0), Parameter("tb_mortality_rate_inf", 0.0)
+        Parameter("tb_mortality_rate_lowinf", 0.0),
+        Parameter("tb_mortality_rate_inf", 0.0),
     )
     tb_mort = TransitionFlow("tb_mortality", source, dest, rate)
     epi_model.add_flow(tb_mort)
@@ -403,7 +404,9 @@ def add_flows_to_model(
     add_seeding(epi_model, disease_state, START_TIME)
     add_detection(epi_model, disease_state, clin_strat, START_TIME)
     add_replacement_deaths(epi_model, disease_state, age_strat, death_rates, START_TIME)
-    add_entry_births(epi_model, disease_state, age_strat, START_TIME, entry_rates, entry_times)
+    add_entry_births(
+        epi_model, disease_state, age_strat, START_TIME, entry_rates, entry_times
+    )
     add_treatment_flows(
         death_rates,
         START_TIME,

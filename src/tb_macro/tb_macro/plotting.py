@@ -244,7 +244,7 @@ def plot_single_run_comparison(results, disease_state, who_mort):
     notifs_modelled = results["flows"]["detection"].sum(to_dims="time").to_pandas_df()
     notifs_modelled.plot(ax=notif_ax, label="modelled")
     NOTIF_TARGET.plot(ax=notif_ax, linewidth=0.0, marker="o", label="target")
-    notif_ax.set_xlim(2000, 2025)
+    notif_ax.set_xlim(1990, 2025)
     notif_ax.legend()
     notif_ax.set_title("notifications")
 

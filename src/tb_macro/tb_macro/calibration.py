@@ -9,15 +9,18 @@ from tb_macro.constants import LATENT_STATES
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
 PARAM_BOUNDS = {
-    "raw_transmission_rate": [5.0, 18.0],
-    "detect_val_2": [0.4, 0.7],
-    "rel_sus_contained": [0.2, 0.5],
+    "raw_transmission_rate": [10.0, 20.0],
+    "bg_mixing": [0.005, 0.02],
+    "a_spread": [5.0, 15.0],
+    "pc_strength": [1.0, 2.0],
+    "rel_sus_contained": [0.2, 0.6],
     "rel_sus_cleared": [0.5, 1.0],
     "rel_sus_children": [0.5, 1.0],
     "breakdown_rate": [0.01, 1.0],
     "clearance_rate": [0.01, 0.1],
-    "clinical_progression_rate": [0.5, 5.0],
-    "infectiousness_gain_rate": [0.5, 5.0],
+    "clinical_progression_rate": [0.25, 2.0],
+    "infectiousness_gain_rate": [0.25, 2.0],
+    "detect_val_2": [0.4, 0.8],
 }
 
 
