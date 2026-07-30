@@ -98,31 +98,31 @@ def add_natural_history(
 
     source = infect_strat["low"]
     dest = infect_strat["high"]
-    rate = Parameter("increase_infect", 0.0)
-    increase_infect = TransitionFlow("increase_infectiousness", source, dest, rate)
-    epi_model.add_flow(increase_infect)
+    rate = Parameter("infectiousness_gain_rate", 0.0)
+    infect_gain = TransitionFlow("infectiousness_gain", source, dest, rate)
+    epi_model.add_flow(infect_gain)
 
     source = infect_strat["high"]
     dest = infect_strat["low"]
-    rate = Parameter("decrease_infect", 0.0)
-    decrease_infect = TransitionFlow("decrease_infectiousness", source, dest, rate)
-    epi_model.add_flow(decrease_infect)
+    rate = Parameter("infectiousness_loss_rate", 0.0)
+    infect_loss = TransitionFlow("infectiousness_loss", source, dest, rate)
+    epi_model.add_flow(infect_loss)
 
     source = clin_strat["subclin"]
     dest = clin_strat["clin"]
-    rate = Parameter("clinical_development", 0.0)
+    rate = Parameter("clinical_progression_rate", 0.0)
     clin_dev = TransitionFlow("clinical_develop", source, dest, rate)
     epi_model.add_flow(clin_dev)
 
     source = clin_strat["clin"]
     dest = clin_strat["subclin"]
-    rate = Parameter("clinical_regression", 0.0)
+    rate = Parameter("clinical_regression_rate", 0.0)
     clin_regress = TransitionFlow("clinical_regress", source, dest, rate)
     epi_model.add_flow(clin_regress)
 
     source = (disease_state["active"], clin_strat["subclin"])
     dest = disease_state["recovered"]
-    rate = Parameter("self_recovery", 0.0)
+    rate = Parameter("self_recovery_rate", 0.0)
     self_recovery = TransitionFlow("self_recovery", source, dest, rate)
     epi_model.add_flow(self_recovery)
 
@@ -132,7 +132,7 @@ def add_natural_history(
     source = disease_state["active"]
     dest = (disease_state["mtb_naive"], age_strat["0"])
     rate = defer(mort_rates)(
-        Parameter("tb_mort_lowinf", 0.0), Parameter("tb_mort_inf", 0.0)
+        Parameter("tb_mortality_rate_lowinf", 0.0), Parameter("tb_mortality_rate_inf", 0.0)
     )
     tb_mort = TransitionFlow("tb_mortality", source, dest, rate)
     epi_model.add_flow(tb_mort)
@@ -144,10 +144,10 @@ def infect_process(
     infectious_compartments: StratSpec,
     infectivity_cats: CategoryGroup,
     clinical_cats: CategoryGroup,
-    contact_rate: float,
+    transmission_rate: float,
     age_breaks: jnp.array,
     young_end_age: int,
-    young_suscept: float,
+    rel_sus_children: float,
     rel_infect_lowinf: float,
     rel_infect_subclin: float,
     mm_dynamic,
@@ -162,10 +162,10 @@ def infect_process(
         infectious_compartments: Active disease compartments that contribute to FoI
         infectivity_cats: Category group for infectiousness strata
         clinical_cats: Category group for clinical strata
-        contact_rate: Base contact rate multiplier
+        transmission_rate: Base contact rate multiplier
         age_breaks: Age values used to determine young-age stratification
         young_end_age: Maximum age to receive reduced susceptibility
-        young_suscept: Susceptibility multiplier for younger ages
+        rel_sus_children: Susceptibility multiplier for younger ages
         rel_infect_lowinf: Relative infectiousness for low-infectious cases
         rel_infect_subclin: Relative infectiousness for subclinical cases
         mm_dynamic: Function that builds a mixing matrix at a given time
@@ -177,7 +177,7 @@ def infect_process(
     infect_pop_cats = age_cats.product(infectious_compartments)
 
     age_infect = jnp.where(age_breaks < young_end_age, 0.0, 1.0)
-    age_suscept = jnp.where(age_breaks < young_end_age, young_suscept, 1.0)
+    age_suscept = jnp.where(age_breaks < young_end_age, rel_sus_children, 1.0)
 
     infectivity_modifier = infectivity_cats.wrap(jnp.array([rel_infect_lowinf, 1.0]))
     effective_values = mul_ma_catdata(compartment_values, infectivity_modifier, True)
@@ -188,7 +188,7 @@ def infect_process(
     ipops = effective_values.sumcats(infect_pop_cats).data
     total_pop = compartment_values.sumcats(age_cats).data
 
-    inf_pressure = contact_rate * age_infect * ipops / total_pop
+    inf_pressure = transmission_rate * age_infect * ipops / total_pop
     age_foi = age_suscept * (mm_dynamic @ inf_pressure)
     return CategoryData(infectee_cats, age_foi)
 
@@ -238,7 +238,7 @@ def add_infection_flows(
     for comp in INFECT_COMPS:
         suscept_comp = "cleared" if comp in ["cleared", "recovered"] else comp
         rel_sus = Parameter(f"rel_sus_{suscept_comp}", 0.0)
-        scaled_contact_rate = Parameter("contact_rate", 0.0) * rel_sus
+        scaled_contact_rate = Parameter("raw_transmission_rate", 0.0) * rel_sus
         reinfect_foi = defer(infect_process)(
             CompartmentValues,
             age_strat.categories(),
@@ -248,7 +248,7 @@ def add_infection_flows(
             scaled_contact_rate,
             jnp.array(AGE_STRATA),
             young_end_age,
-            Parameter("young_suscept", 0.0),
+            Parameter("rel_sus_children", 0.0),
             Parameter("rel_infectiousness_lowinf", 0.0),
             Parameter("rel_infectiousness_subclin", 0.0),
             dynamic_mm,
@@ -329,9 +329,9 @@ def add_latency_flows(
     latency_age_adj = get_latency_age_adj(age_strat)
 
     contain_func = defer(latency_age_adj)(
-        Parameter("containment_age0", 0.0),
-        Parameter("containment_age5", 0.0),
-        Parameter("containment_age15", 0.0),
+        Parameter("containment_rate_age0", 0.0),
+        Parameter("containment_rate_age5", 0.0),
+        Parameter("containment_rate_age15", 0.0),
     )
     source = disease_state["incipient"]
     dest = disease_state["contained"]
@@ -342,9 +342,9 @@ def add_latency_flows(
         return infect_strat.categories().wrap(jnp.array([1.0 - p_inf, p_inf]))
 
     prog_func = defer(latency_age_adj)(
-        Parameter("progression_age0", 0.0),
-        Parameter("progression_age5", 0.0),
-        Parameter("progression_age15", 0.0),
+        Parameter("progression_rate_age0", 0.0),
+        Parameter("progression_rate_age5", 0.0),
+        Parameter("progression_rate_age15", 0.0),
     )
     source = disease_state["incipient"]
     dest = clin_strat["subclin"]
