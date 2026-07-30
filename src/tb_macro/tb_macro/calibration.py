@@ -8,6 +8,18 @@ from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
 from tb_macro.constants import LATENT_STATES
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
+PARAM_BOUNDS = {
+    "raw_transmission_rate": [5.0, 18.0],
+    "detect_val_2": [0.4, 0.7],
+    "rel_sus_contained": [0.2, 0.5],
+    "rel_sus_cleared": [0.5, 1.0],
+    "rel_sus_children": [0.5, 1.0],
+    "breakdown_rate": [0.01, 1.0],
+    "clearance_rate": [0.01, 0.1],
+    "clinical_progression_rate": [0.5, 5.0],
+    "infectiousness_gain_rate": [0.5, 5.0],
+}
+
 
 def make_log_likelihood(
     epi_model,
