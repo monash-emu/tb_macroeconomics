@@ -210,3 +210,6 @@ __marimo__/
 !.pixi/config.toml
 
 .DS_Store
+
+# Calibration outputs
+outputs/*
