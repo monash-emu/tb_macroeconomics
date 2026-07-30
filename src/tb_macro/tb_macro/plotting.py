@@ -45,7 +45,7 @@ def plot_comp_distributions(
     dstate_props.to_pandas_df().clip(lower=0).plot.area(ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0])
     age_vals.to_pandas_df().plot.area(ax=axes[0, 1], title="age group sizes")
     age_props.to_pandas_df().plot.area(ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0])
-    clin_props.to_pandas_df().plot.area(ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0])
+    clin_props.to_pandas_df().clip(0.0).plot.area(ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0])
     inf_props.to_pandas_df().plot.area(ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0])
     for ax in axes.ravel():
         ax.legend(loc="upper left")
