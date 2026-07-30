@@ -2,7 +2,7 @@ BASE_PARAMS = {
     "raw_transmission_rate": 7.0,
     "bg_mixing": 0.029, # U(0.01, 0.05)
     "a_spread": 9.83, # U(5.0, 15.0)
-    "pc_strength": 0.99,
+    "pc_strength": 0.99, # U(1.0, 2.0)
     "rel_sus_mtb_naive": 1.0, # Required, but should remain one by definition
     "rel_sus_contained": 0.3, # U(0.2, 0.5)
     "rel_sus_cleared": 0.7, # U(0.5, 1.0)
