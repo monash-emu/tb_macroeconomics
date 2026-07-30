@@ -4,8 +4,9 @@ import seaborn as sns
 
 from summer3.epi import Stratification, ManagedArray
 
-from tb_macro.constants import AGE_STRATA
+from tb_macro.constants import AGE_STRATA, LATENT_STATES
 from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
+from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
 pd.options.plotting.backend = "matplotlib"
 
@@ -40,13 +41,28 @@ def plot_comp_distributions(
     clin_props = get_partial_strat_props(results, clin_strat)
 
     fig, axes = plt.subplots(2, 3, figsize=[15, 7], sharex=True)
-    total_pop.to_pandas_df().plot.area(ax=axes[0, 0], title="total population versus target data", xlim=[1920, plot_end_time - 1], legend=False)
-    group_popsize.sum(axis=1).plot(ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=1.0)
-    dstate_props.to_pandas_df().clip(lower=0).plot.area(ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0])
+    total_pop.to_pandas_df().plot.area(
+        ax=axes[0, 0],
+        title="total population versus target data",
+        xlim=[1920, plot_end_time - 1],
+        legend=False,
+    )
+    group_popsize.sum(axis=1).plot(
+        ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=1.0
+    )
+    dstate_props.to_pandas_df().clip(lower=0).plot.area(
+        ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0]
+    )
     age_vals.to_pandas_df().plot.area(ax=axes[0, 1], title="age group sizes")
-    age_props.to_pandas_df().plot.area(ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0])
-    clin_props.to_pandas_df().clip(0.0).plot.area(ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0])
-    inf_props.to_pandas_df().plot.area(ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0])
+    age_props.to_pandas_df().plot.area(
+        ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0]
+    )
+    clin_props.to_pandas_df().clip(0.0).plot.area(
+        ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0]
+    )
+    inf_props.to_pandas_df().plot.area(
+        ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0]
+    )
     for ax in axes.ravel():
         ax.legend(loc="upper left")
     plt.close()
@@ -98,20 +114,20 @@ COUNT_TITLES = {
     "incidence": "incident cases per year",
     "notifications": "notified cases per year",
     "deaths": "deaths per year",
-    "latent": "infected population number"
+    "latent": "infected population number",
 }
 RATE_TITLES = {
     "prevalence": "prevalence per 100,000",
     "incidence": "incidence per 100,000 per year",
     "notifications": "notifications per 100,000 per year",
     "deaths": "deaths per 100,000 per year",
-    "latent": "percentage with latent infection"
+    "latent": "percentage with latent infection",
 }
 
 
 def plot_outputs(
-    prev: pd.DataFrame, 
-    inc: pd.DataFrame, 
+    prev: pd.DataFrame,
+    inc: pd.DataFrame,
     notif: pd.DataFrame,
     notif_target: pd.Series,
     tb_death: pd.DataFrame,
@@ -168,7 +184,6 @@ def plot_outputs(
     else:
         raise ValueError(f"Unknown mode '{mode}'. Expected 'count' or 'rate'.")
 
-
     ax_locs = {
         "prevalence": axes[0, 0],
         "incidence": axes[0, 1],
@@ -180,9 +195,9 @@ def plot_outputs(
     for out in ax_locs:
         data_to_plot = data[out]
         data_to_plot[data_to_plot.index > plot_start].plot(
-            ax=ax_locs[out], 
-            title=titles[out], 
-            legend=False, 
+            ax=ax_locs[out],
+            title=titles[out],
+            legend=False,
             xlim=[plot_start, end_time - 1],
         )
     axes[2, 1].set_axis_off()
@@ -201,16 +216,64 @@ def plot_age_population_comparison(results, target_pop, age_strat, year):
         .loc[year]
         .astype(float)
     )
- 
+
     target = target_pop.loc[year].astype(float)
     target.index = target.index.astype(str)
 
     df = pd.DataFrame(
-        {"age_group": target.index, "Target": target.values, "Modelled": modelled.reindex(target.index).values}
+        {
+            "age_group": target.index,
+            "Target": target.values,
+            "Modelled": modelled.reindex(target.index).values,
+        }
     )
     plot_df = df.melt(id_vars="age_group", var_name="series", value_name="population")
 
-    ax = sns.barplot(data=plot_df, x="age_group", y="population", hue="series", dodge=True)
+    ax = sns.barplot(
+        data=plot_df, x="age_group", y="population", hue="series", dodge=True
+    )
     ax.set_title(f"population by age in {int(year)}")
     return ax
-    
+
+
+def plot_single_run_comparison(results, disease_state, who_mort):
+    fig, axes = plt.subplots(2, 2, figsize=(10, 8), sharex=True)
+
+    # Notifications
+    notif_ax = axes[0, 0]
+    notifs_modelled = results["flows"]["detection"].sum(to_dims="time").to_pandas_df()
+    notifs_modelled.plot(ax=notif_ax, label="modelled")
+    NOTIF_TARGET.plot(ax=notif_ax, linewidth=0.0, marker="o", label="target")
+    notif_ax.set_xlim(2000, 2025)
+    notif_ax.legend()
+    notif_ax.set_title("notifications")
+
+    # Latent
+    latent_ax = axes[0, 1]
+    total_pop = results["compartments"].sum(to_dims="time").to_pandas_df()
+    latent_states = results["compartments"].query(
+        compartment=disease_state[LATENT_STATES]
+    )
+    latent_modelled = (
+        latent_states.sum(to_dims="time").to_pandas_df() / total_pop * 100.0
+    )
+    latent_modelled.plot(ax=latent_ax, label="modelled")
+    LATENT_TARGET.plot(ax=latent_ax, linewidth=0.0, marker="o", label="target")
+    notif_ax.legend()
+    latent_ax.set_title("latent")
+
+    # Mortality
+    mort_ax = axes[1, 0]
+    community_death_age = (
+        results["flows"]["tb_mortality"].sum(to_dims="time").to_pandas_df()
+    )
+    rx_death_age = results["flows"]["rx_death"].sum(to_dims="time").to_pandas_df()
+    deaths = community_death_age + rx_death_age
+    deaths.plot(ax=mort_ax)
+    who_mort.plot(ax=mort_ax, linewidth=0.0, marker="o", label="target")
+    mort_ax.set_title("mortality")
+    axes[1, 1].set_axis_off()
+
+    fig.tight_layout()
+    plt.close()
+    return fig
