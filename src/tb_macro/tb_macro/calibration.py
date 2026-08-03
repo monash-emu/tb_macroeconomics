@@ -10,7 +10,7 @@ from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
 PARAM_BOUNDS = {
     "raw_transmission_rate": [12.0, 20.0],
-    "bg_mixing": [0.002, 0.02],
+    "bg_mixing": [0.002, 0.04],
     "a_spread": [5.0, 15.0],
     "pc_strength": [1.0, 2.5],
     "rel_sus_contained": [0.2, 0.6],
