@@ -236,42 +236,52 @@ def plot_age_population_comparison(results, target_pop, age_strat, year):
     return ax
 
 
-def plot_single_run_comparison(results, disease_state, who_mort):
+def plot_single_run_comparison(results, disease_state, who_mort, start, end):
     fig, axes = plt.subplots(2, 2, figsize=(10, 8), sharex=True)
 
     # Notifications
     notif_ax = axes[0, 0]
-    notifs_modelled = results["flows"]["detection"].sum(to_dims="time").to_pandas_df()
+    notifs_modelled = (
+        results["flows"]["detection"].sum(to_dims="time").to_pandas_df().loc[start:end]
+    )
     notifs_modelled.plot(ax=notif_ax, label="modelled")
     NOTIF_TARGET.plot(ax=notif_ax, linewidth=0.0, marker="o", label="target")
-    notif_ax.set_xlim(1990, 2025)
+    notif_ax.set_ylim(bottom=0.0)
     notif_ax.legend()
     notif_ax.set_title("notifications")
 
     # Latent
     latent_ax = axes[0, 1]
-    total_pop = results["compartments"].sum(to_dims="time").to_pandas_df()
+    total_pop = (
+        results["compartments"].sum(to_dims="time").to_pandas_df().loc[start:end]
+    )
     latent_states = results["compartments"].query(
         compartment=disease_state[LATENT_STATES]
     )
+    latent_ax.set_ylim(bottom=0.0, top=100.0)
     latent_modelled = (
         latent_states.sum(to_dims="time").to_pandas_df() / total_pop * 100.0
     )
     latent_modelled.plot(ax=latent_ax, label="modelled")
     LATENT_TARGET.plot(ax=latent_ax, linewidth=0.0, marker="o", label="target")
-    notif_ax.legend()
+    latent_ax.legend()
     latent_ax.set_title("latent")
 
     # Mortality
     mort_ax = axes[1, 0]
     community_death_age = (
-        results["flows"]["tb_mortality"].sum(to_dims="time").to_pandas_df()
+        results["flows"]["tb_mortality"]
+        .sum(to_dims="time")
+        .to_pandas_df()
+        .loc[start:end]
     )
     rx_death_age = results["flows"]["rx_death"].sum(to_dims="time").to_pandas_df()
     deaths = community_death_age + rx_death_age
     deaths.plot(ax=mort_ax)
     who_mort.plot(ax=mort_ax, linewidth=0.0, marker="o", label="target")
     mort_ax.set_title("mortality")
+    mort_ax.set_ylim(bottom=0.0)
+
     axes[1, 1].set_axis_off()
 
     fig.tight_layout()
