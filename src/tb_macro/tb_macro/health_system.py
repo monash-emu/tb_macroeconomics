@@ -31,6 +31,7 @@ def add_detection(
     def detect_curve(
         t,
         time_0,
+        val_0,
         time_1,
         val_1,
         time_2,
@@ -39,27 +40,25 @@ def add_detection(
         val_3,
     ):
         times = get_scale_data(jnp.array([time_0, time_1, time_2, time_3]))
-        vals = get_scale_data(jnp.array([0.0, val_1, val_2, val_3]))
+        vals = get_scale_data(jnp.array([val_0, val_1, val_2, val_3]))
         return get_cos_multicurve(t, times, vals)
 
-    detect_time_0 = Parameter("detect_time_0", 0.0)
-    detect_time_1 = Parameter("detect_time_1", 0.0)
-    detect_val_1 = Parameter("detect_val_1", 0.0)
-    detect_time_2 = Parameter("detect_time_2", 0.0)
-    detect_val_2 = Parameter("detect_val_2", 0.0)
-    detect_time_3 = 2027.0
-    detect_val_3 = detect_val_2 + (1.0 - detect_val_2) * Parameter("detect_gap_reduction", 0.0)
+    detect_rate_2020 = Parameter("detect_rate_current", 0.0)
+    detect_rate_2010 = detect_rate_2020 * Parameter("rel_detect_2010", 0.0)
+    detect_rate_1986 = detect_rate_2010 * Parameter("rel_detect_1986", 0.0)
+    detect_rate_1957 = 0.0
 
     sim_time = Time + start_time
     detect_func = defer(detect_curve)(
         sim_time,
-        detect_time_0,
-        detect_time_1,
-        detect_val_1,
-        detect_time_2,
-        detect_val_2,
-        detect_time_3,
-        detect_val_3,
+        1957.0,
+        detect_rate_1957,
+        1986.0,
+        detect_rate_1986,
+        2010.0,
+        detect_rate_2010,
+        2020.0,
+        detect_rate_2020,
     )
 
     source = (disease_state["active"], clin_strat["clin"])
@@ -158,7 +157,9 @@ def add_treatment_flows(
     death_unsucc_func = defer(death_unsucc_curve)(Time)
 
     # Natural death calculations
-    death_times = np.array(death_rates.index) # FIXME: Does this this need get_scale_data
+    death_times = np.array(
+        death_rates.index
+    )  # FIXME: Does this this need get_scale_data
     death_vals = np.array(death_rates)
     death_array_func = make_multi_interp_array_func(death_times, death_vals, start_time)
     death_func = defer(death_array_func)(Time)

@@ -20,7 +20,9 @@ PARAM_BOUNDS = {
     "clearance_rate": [0.01, 0.1],
     "clinical_progression_rate": [0.25, 2.0],
     "infectiousness_gain_rate": [0.25, 2.0],
-    "detect_val_2": [0.4, 0.8],
+    "detect_rate_current": [0.5, 1.2],
+    # "rel_detect_2010": [0.5, 1.0],
+    # "rel_detect_1986": [0.25, 0.75],
 }
 
 
