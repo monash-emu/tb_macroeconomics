@@ -161,8 +161,8 @@ def plot_outputs(
     fig, axes = plt.subplots(3, 2, figsize=[12, 10], sharex=True)
     if mode == "count":
         titles = COUNT_TITLES
-        notif_target.plot(ax=axes[1, 0], linewidth=0.0, marker="o", color="k")
-        death_target.plot(ax=axes[1, 1], linewidth=0.0, marker="o", color="k")
+        notif_target.plot(ax=axes[1, 0], linewidth=0.0, marker="o", color="k", zorder=3)
+        death_target.plot(ax=axes[1, 1], linewidth=0.0, marker="o", color="k", zorder=3)
         data = {
             "prevalence": prev,
             "incidence": inc,
@@ -173,7 +173,7 @@ def plot_outputs(
 
     elif mode == "rate":
         titles = RATE_TITLES
-        latent_target.plot(ax=axes[2, 0], linewidth=0.0, marker="o", color="k")
+        latent_target.plot(ax=axes[2, 0], linewidth=0.0, marker="o", color="k", zorder=4)
         data = {
             "prevalence": prev.div(total_pop, axis=0) * 1e5,
             "incidence": inc.div(total_pop, axis=0) * 1e5,
@@ -205,6 +205,7 @@ def plot_outputs(
     for ax in axes.ravel():
         ax.set_ylim(bottom=0.0)
     fig.tight_layout()
+    plt.close()
     return fig
 
 
