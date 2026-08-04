@@ -142,3 +142,20 @@ def get_scale_data(points) -> InterpolatorScaleData:
 
     # data = {"min": ymin, "max": ymax, "values": points, "ranges": ranges}
     return InterpolatorScaleData(points, ranges, jnp.array([lpoint, rpoint]))
+
+
+def get_four_element_multicurve(
+    t,
+    time_0,
+    val_0,
+    time_1,
+    val_1,
+    time_2,
+    val_2,
+    time_3,
+    val_3,
+):
+    times = get_scale_data(jnp.array([time_0, time_1, time_2, time_3]))
+    vals = get_scale_data(jnp.array([val_0, val_1, val_2, val_3]))
+    return get_cos_multicurve(t, times, vals)
+    

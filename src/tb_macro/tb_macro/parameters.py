@@ -33,4 +33,9 @@ BASE_PARAMS = {
     "seed_peak_time": 1830.0,
     "seed_duration": 10.0,
     "seed_peak_rate": 0.01,
+    "acf_coverage": 0.0,
+    "acf_sensitivity": 0.0,
+    "acf_start": 2027,
+    "acf_duration": 5.0,
+    "acf_scaling_time": 1.0,
 }

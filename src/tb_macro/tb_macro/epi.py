@@ -29,6 +29,7 @@ from tb_macro.constants import (
 )
 from tb_macro.utils import get_triang_vals
 from tb_macro.mixing import get_norm_c_matrix
+from tb_macro.acf import add_acf
 
 ModelSpec = namedtuple(
     "ModelSpec",
@@ -419,6 +420,8 @@ def add_flows_to_model(
         death_in_unsucc,
     )
     add_latency_flows(epi_model, disease_state, age_strat, clin_strat, infect_strat)
+    add_acf(epi_model, disease_state, START_TIME)
+
 
 
 def initialise_pops(

@@ -9,7 +9,7 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Time, Parameter
 
-from tb_macro.utils import get_scale_data, get_cos_multicurve
+from tb_macro.utils import get_scale_data, get_cos_multicurve, get_four_element_multicurve
 from tb_macro.demography import make_multi_interp_array_func
 
 
@@ -27,29 +27,13 @@ def add_detection(
         clin_strat: The clinical stratification object
         start_time: The model starting time as a calendar year
     """
-
-    def detect_curve(
-        t,
-        time_0,
-        val_0,
-        time_1,
-        val_1,
-        time_2,
-        val_2,
-        time_3,
-        val_3,
-    ):
-        times = get_scale_data(jnp.array([time_0, time_1, time_2, time_3]))
-        vals = get_scale_data(jnp.array([val_0, val_1, val_2, val_3]))
-        return get_cos_multicurve(t, times, vals)
-
     detect_rate_2020 = Parameter("detect_rate_current", 0.0)
     detect_rate_2010 = detect_rate_2020 * Parameter("rel_detect_2010", 0.0)
     detect_rate_1986 = detect_rate_2010 * Parameter("rel_detect_1986", 0.0)
     detect_rate_1957 = 0.0
 
     sim_time = Time + start_time
-    detect_func = defer(detect_curve)(
+    detect_func = defer(get_four_element_multicurve)(
         sim_time,
         1957.0,
         detect_rate_1957,
