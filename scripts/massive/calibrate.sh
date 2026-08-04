@@ -10,4 +10,4 @@
 
 cd $SCRIPT_DIR/../..
 
-pixi run python scripts/massive/test_massive.py
+pixi run python scripts/massive/calibrate.py
