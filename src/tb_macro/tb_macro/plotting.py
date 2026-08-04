@@ -196,32 +196,31 @@ def plot_outputs(
     return fig
 
 
-def plot_age_population_comparison(results, target_pop, age_strat, year):
-    modelled = (
-        results["compartments"]
-        .sumcats(compartment=age_strat.categories())
-        .to_pandas_df()
-        .loc[year]
-        .astype(float)
-    )
+def plot_age_population_comparison(results, target_pop, age_strat, years):
+    fig, axes = plt.subplots(2, 3, figsize=(12, 7))
+    axes = axes.ravel()
 
-    target = target_pop.loc[year].astype(float)
-    target.index = target.index.astype(str)
+    for ax, year in zip(axes, years):
+        modelled = results["compartments"].sumcats(compartment=age_strat.categories()).to_pandas_df().loc[year].astype(float)
 
-    df = pd.DataFrame(
-        {
-            "age_group": target.index,
-            "Target": target.values,
-            "Modelled": modelled.reindex(target.index).values,
-        }
-    )
-    plot_df = df.melt(id_vars="age_group", var_name="series", value_name="population")
+        target = target_pop.loc[year].astype(float)
+        target.index = target.index.astype(str)
 
-    ax = sns.barplot(
-        data=plot_df, x="age_group", y="population", hue="series", dodge=True
-    )
-    ax.set_title(f"population by age in {int(year)}")
-    return ax
+        df = pd.DataFrame(
+            {
+                "age_group": target.index,
+                "target": target.values,
+                "modelled": modelled.reindex(target.index).values,
+            }
+        )
+        plot_df = df.melt(id_vars="age_group", var_name="series", value_name="population")
+
+        sns.barplot(data=plot_df, x="age_group", y="population", hue="series", ax=ax)
+        ax.set_title(f"population by age in year {int(year)}")
+
+    fig.tight_layout()
+    plt.close()
+    return fig
 
 
 def plot_single_run_comparison(results, disease_state, who_mort, start, end):
