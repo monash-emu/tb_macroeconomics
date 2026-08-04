@@ -17,6 +17,7 @@ def plot_comp_distributions(
     age_strat: Stratification,
     infect_strat: Stratification,
     clin_strat: Stratification,
+    plot_start_time: float,
     plot_end_time: float,
     group_popsize,
 ) -> plt.figure:
@@ -33,36 +34,22 @@ def plot_comp_distributions(
     Returns:
         The figure
     """
-    total_pop = results["compartments"].sum(to_dims="time")
-    dstate_props = get_complete_strat_props(results, disease_state)
-    age_vals = results["compartments"].sumcats(compartment=age_strat.categories())
-    age_props = get_complete_strat_props(results, age_strat)
-    inf_props = get_partial_strat_props(results, infect_strat)
-    clin_props = get_partial_strat_props(results, clin_strat)
+    total_pop = results["compartments"].sum(to_dims="time").to_pandas_df().loc[plot_start_time: plot_end_time]
+    total_pop_target = group_popsize.sum(axis=1).loc[plot_start_time: plot_end_time]
+    dstate_props = get_complete_strat_props(results, disease_state).to_pandas_df().loc[plot_start_time: plot_end_time]
+    age_vals = results["compartments"].sumcats(compartment=age_strat.categories()).to_pandas_df().loc[plot_start_time: plot_end_time]
+    age_props = get_complete_strat_props(results, age_strat).to_pandas_df().loc[plot_start_time: plot_end_time]
+    inf_props = get_partial_strat_props(results, infect_strat).to_pandas_df().loc[plot_start_time: plot_end_time]
+    clin_props = get_partial_strat_props(results, clin_strat).to_pandas_df().loc[plot_start_time: plot_end_time]
 
     fig, axes = plt.subplots(2, 3, figsize=[15, 7], sharex=True)
-    total_pop.to_pandas_df().plot.area(
-        ax=axes[0, 0],
-        title="total population versus target data",
-        xlim=[1920, plot_end_time - 1],
-        legend=False,
-    )
-    group_popsize.sum(axis=1).plot(
-        ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=1.0
-    )
-    dstate_props.to_pandas_df().clip(lower=0).plot.area(
-        ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0]
-    )
-    age_vals.to_pandas_df().plot.area(ax=axes[0, 1], title="age group sizes")
-    age_props.to_pandas_df().plot.area(
-        ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0]
-    )
-    clin_props.to_pandas_df().clip(0.0).plot.area(
-        ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0]
-    )
-    inf_props.to_pandas_df().plot.area(
-        ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0]
-    )
+    total_pop.plot.area(ax=axes[0, 0], title="total population versus target data", legend=False)
+    total_pop_target.plot(ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=1.0, label="target")
+    dstate_props.clip(lower=0).plot.area(ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0])
+    age_vals.plot.area(ax=axes[0, 1], title="age group sizes")
+    age_props.plot.area(ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0])
+    clin_props.clip(0.0).plot.area(ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0])
+    inf_props.plot.area(ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0])
     for ax in axes.ravel():
         ax.legend(loc="upper left")
     plt.close()
