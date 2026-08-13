@@ -26,6 +26,7 @@ from tb_macro.constants import (
     INFECT_COMPS,
     START_TIME,
     YOUNG_END_AGE,
+    TOP_AGE_BRACKET_INFLATION,
 )
 from tb_macro.utils import get_triang_vals
 from tb_macro.mixing import get_norm_c_matrix
@@ -388,6 +389,7 @@ def add_flows_to_model(
         entry_times: Entry years
         entry_rates: Calculated entry rates to match population
     """
+    death_rates[AGE_STRATA[-1]] *= TOP_AGE_BRACKET_INFLATION
     add_infection_flows(
         epi_model,
         disease_state,

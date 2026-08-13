@@ -135,9 +135,9 @@ def prepare_pop_data_for_entries(
         The times and entry rates
     """
     total_pop_size = group_popsize.sum(axis=1)
-    non_dec_data = total_pop_size.cummax()
-    non_dec_data[start_time] = start_pop
-    non_dec_data_w_start = non_dec_data.sort_index()
+    # non_dec_data = total_pop_size.cummax()
+    total_pop_size[start_time] = start_pop
+    non_dec_data_w_start = total_pop_size.sort_index()
     pop_increments = non_dec_data_w_start.diff()
     time_increments = non_dec_data_w_start.index.diff()
     entry_birth_rates = (pop_increments / time_increments).dropna()
