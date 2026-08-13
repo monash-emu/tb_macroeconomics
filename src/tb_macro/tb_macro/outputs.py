@@ -66,27 +66,42 @@ def get_share_folder_file_path(
 
 
 # Functions for extracting outputs from results with common signatures
-def get_age_inc(results, age_strat, disease_state):
+def get_age_inc(results, age_strat, disease_state, clin_strat):
     return results["flows"]["progression"].sumcats(source=age_strat.categories())
 
 
-def get_age_prev(results, age_strat, disease_state):
-    prev_states = results["compartments"].query(compartment=disease_state[PREV_STATES])
-    return prev_states.sumcats(compartment=age_strat.categories())
+def get_age_prev(results, age_strat, disease_state, clin_strat):
+    states = results["compartments"].query(compartment=disease_state[PREV_STATES])
+    return states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_latent(results, age_strat, disease_state):
+def get_age_clin_prev(results, age_strat, disease_state, clin_strat):
+    states = results["compartments"].query(compartment=clin_strat["clin"])
+    return states.sumcats(compartment=age_strat.categories())
+
+
+def get_age_rx_prev(results, age_strat, disease_state, clin_strat):
+    states = results["compartments"].query(compartment=disease_state["treatment"])
+    return states.sumcats(compartment=age_strat.categories())
+
+
+def get_age_recovered_prev(results, age_strat, disease_state, clin_strat):
+    states = results["compartments"].query(compartment=disease_state["recovered"])
+    return states.sumcats(compartment=age_strat.categories())
+
+
+def get_age_latent(results, age_strat, disease_state, clin_strat):
     latent_states = results["compartments"].query(
         compartment=disease_state[LATENT_STATES]
     )
     return latent_states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_notifs(results, age_strat, disease_state):
+def get_age_notifs(results, age_strat, disease_state, clin_strat):
     return results["flows"]["detection"].sumcats(source=age_strat.categories())
 
 
-def get_age_deaths(results, age_strat, disease_state):
+def get_age_deaths(results, age_strat, disease_state, clin_strat):
     community_death_age = results["flows"]["tb_mortality"].sumcats(
         source=age_strat.categories()
     )
@@ -94,11 +109,11 @@ def get_age_deaths(results, age_strat, disease_state):
     return community_death_age + rx_death_age
 
 
-def get_total_pop(results, age_strat, disease_state):
+def get_total_pop(results, age_strat, disease_state, clin_strat):
     return results["compartments"].sum(to_dims="time")
 
 
-def get_age_pop(results, age_strat, disease_state):
+def get_age_pop(results, age_strat, disease_state, clin_strat):
     return results["compartments"].sumcats(compartment=age_strat.categories())
 
 
@@ -315,6 +330,7 @@ def rerun_model_for_outputs(
     epi_model: CompartmentalEpiModel,
     age_strat: Stratification,
     disease_state: Stratification,
+    clin_strat: Stratification,
     idata: InferenceData,
     scen_params: List[Dict[str, float]],
     samples: dataset,
@@ -326,6 +342,7 @@ def rerun_model_for_outputs(
         epi_model: The epidemiological model
         age_strat: The age stratification object
         disease_state: The compartmental stratification object
+        clin_strat: The clinical stratification object
         idata: The inference data object
         scen_params: The scenario parameters
         samples: The parameter samples
@@ -340,6 +357,9 @@ def rerun_model_for_outputs(
         "notifications": get_age_notifs,
         "deaths": get_age_deaths,
         "age_pop": get_age_pop,
+        "clin": get_age_clin_prev,
+        "treatment": get_age_rx_prev,
+        "recovered": get_age_recovered_prev,
     }
     sample_labels = []
     outputs = [{out: [] for out in indicator_funcs} for _ in scen_params]
@@ -350,7 +370,7 @@ def rerun_model_for_outputs(
         for s, s_params in enumerate(scen_params):
             results = epi_model.run(BASE_PARAMS | c_params | s_params, solver_kwargs=SOLVER_KWARGS)
             for ind, func in indicator_funcs.items():
-                output = func(results, age_strat, disease_state).to_pandas_df()
+                output = func(results, age_strat, disease_state, clin_strat).to_pandas_df()
                 if is_age_stratified_output(output):
                     output.columns.name = "age_group"
                 outputs[s][ind].append(output)
