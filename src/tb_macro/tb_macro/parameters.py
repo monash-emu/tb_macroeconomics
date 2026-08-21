@@ -14,7 +14,6 @@ BASE_PARAMS = {
     "tb_mortality_rate_inf": 0.389,
     "tb_mortality_rate_lowinf": 0.025,
     "self_recovery_rate": 0.4,
-    "detect_gap_reduction": 0.0,  # Intervention-related only
     "rx_duration": 0.5,  # Should remain at this value
     "seed_peak_time": 1830.0,
     "seed_duration": 10.0,
