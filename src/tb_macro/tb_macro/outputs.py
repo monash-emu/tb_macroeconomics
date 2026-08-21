@@ -7,7 +7,7 @@ from arviz import InferenceData
 from xarray.core import dataset
 
 from summer3.epi import ManagedArray, Stratification, CompartmentalEpiModel
-from tb_macro.constants import PREV_STATES, LATENT_STATES, AGE_STRATA, SOLVER_KWARGS
+from tb_macro.constants import PREV_STATES, INFECTED_STATES, AGE_STRATA, SOLVER_KWARGS
 from tb_macro.parameters import BASE_PARAMS
 
 
@@ -91,10 +91,8 @@ def get_age_recovered_prev(results, age_strat, disease_state, clin_strat):
 
 
 def get_age_latent(results, age_strat, disease_state, clin_strat):
-    latent_states = results["compartments"].query(
-        compartment=disease_state[LATENT_STATES]
-    )
-    return latent_states.sumcats(compartment=age_strat.categories())
+    infected_states = results["compartments"].query(compartment=disease_state[INFECTED_STATES])
+    return infected_states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_notifs(results, age_strat, disease_state, clin_strat):

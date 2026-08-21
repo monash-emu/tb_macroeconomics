@@ -5,25 +5,9 @@ import diffrax as dfx
 
 from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
 
-from tb_macro.constants import LATENT_STATES
+from tb_macro.constants import INFECTED_STATES
+from tb_macro.parameters import PARAM_BOUNDS
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
-
-PARAM_BOUNDS = {
-    "raw_transmission_rate": [12.0, 20.0],
-    "bg_mixing": [0.002, 0.04],
-    "a_spread": [5.0, 15.0],
-    "pc_strength": [1.0, 2.5],
-    "rel_sus_contained": [0.2, 0.6],
-    "rel_sus_cleared": [0.5, 1.0],
-    "rel_sus_children": [0.5, 1.0],
-    "breakdown_rate": [0.01, 1.0],
-    "clearance_rate": [0.01, 0.1],
-    "clinical_progression_rate": [0.25, 2.0],
-    "infectiousness_gain_rate": [0.25, 2.0],
-    "detect_rate_current": [0.5, 1.5],
-    "rel_detect_2010": [0.5, 1.0],
-    "rel_detect_1986": [0.25, 0.75],
-}
 
 
 def make_log_likelihood(
@@ -41,7 +25,7 @@ def make_log_likelihood(
         latent_target_val = LATENT_TARGET.iloc[0] / 1e2
         latent = (
             results["compartments"]
-            .query(compartment=disease_state[LATENT_STATES], time=latent_date)
+            .query(compartment=disease_state[INFECTED_STATES], time=latent_date)
             .sum(to_dims="time")
         )
         total = results["compartments"].query(time=latent_date).sum(to_dims="time")

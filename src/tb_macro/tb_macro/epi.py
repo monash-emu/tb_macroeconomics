@@ -389,6 +389,7 @@ def add_flows_to_model(
         entry_times: Entry years
         entry_rates: Calculated entry rates to match population
     """
+    death_rates = death_rates.copy()
     death_rates[AGE_STRATA[-1]] *= TOP_AGE_BRACKET_INFLATION
     add_infection_flows(
         epi_model,

@@ -4,7 +4,7 @@ import seaborn as sns
 
 from summer3.epi import Stratification, ManagedArray
 
-from tb_macro.constants import AGE_STRATA, LATENT_STATES
+from tb_macro.constants import AGE_STRATA, INFECTED_STATES
 from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
@@ -242,12 +242,12 @@ def plot_single_run_comparison(results, disease_state, who_mort, start, end):
     total_pop = (
         results["compartments"].sum(to_dims="time").to_pandas_df().loc[start:end]
     )
-    latent_states = results["compartments"].query(
-        compartment=disease_state[LATENT_STATES]
+    infected_states = results["compartments"].query(
+        compartment=disease_state[INFECTED_STATES]
     )
     latent_ax.set_ylim(bottom=0.0, top=100.0)
     latent_modelled = (
-        latent_states.sum(to_dims="time").to_pandas_df() / total_pop * 100.0
+        infected_states.sum(to_dims="time").to_pandas_df() / total_pop * 100.0
     )
     latent_modelled.plot(ax=latent_ax, label="modelled")
     LATENT_TARGET.plot(ax=latent_ax, linewidth=0.0, marker="o", label="target")
