@@ -52,7 +52,7 @@ def get_single_age_pop_from_ungroups(
 
 def add_groups_to_single_pop(
     single_age_pops: pd.DataFrame,
-) -> pd.DataFrame:
+):
     single_age_pops["Age Group"] = pd.cut(
         single_age_pops["Age"],
         bins=AGE_STRATA + [MAX_AGE],

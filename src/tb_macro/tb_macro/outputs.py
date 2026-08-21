@@ -117,7 +117,8 @@ def get_age_pop(results, age_strat, disease_state, clin_strat):
 
 def get_posterior_samples(idata, n_samples):
     posterior = idata.posterior.stack(sample=("chain", "draw"))
-    idxs = np.random.choice(posterior.sizes["sample"], size=n_samples, replace=False)
+    rng = np.random.default_rng(0)
+    idxs = rng.choice(posterior.sizes["sample"], size=n_samples, replace=False)
     return posterior.isel(sample=idxs)
 
 

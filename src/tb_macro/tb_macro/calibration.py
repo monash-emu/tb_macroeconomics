@@ -6,7 +6,6 @@ import diffrax as dfx
 from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
 
 from tb_macro.constants import INFECTED_STATES
-from tb_macro.parameters import PARAM_BOUNDS
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
 
