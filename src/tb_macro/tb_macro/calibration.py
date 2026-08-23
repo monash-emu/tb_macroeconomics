@@ -5,17 +5,19 @@ import diffrax as dfx
 
 from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
 
-from tb_macro.constants import INFECTED_STATES, PREV_STATES
+from tb_macro.constants import AGE_STRATA, INFECTED_STATES, YOUNG_END_AGE
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
 
 
 def make_log_likelihood(
     epi_model,
     disease_state,
+    age_strat,
     infect_strat,
     solver_kwargs,
     who_mort,
 ):
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
 
     @jit
     def get_log_likelihood(params):
@@ -58,19 +60,34 @@ def make_log_likelihood(
         deaths = community_deaths + rx_deaths
         death_ll = dist.Normal(who_mort.to_numpy(), 5e3).log_prob(deaths).mean()
 
-        # Prevalence target
+        # Prevalence target: bac-confirmed among ages 15+, including on-treatment
         prev_time = 2017.0
         prev_targ = 322.0 / 1e5
-        high_inf = results["compartments"].query(
-            compartment=infect_strat["high"], 
-            time=prev_time,
-        ).sum(to_dims="time").data
-        low_inf = results["compartments"].query(
-            compartment=infect_strat["low"], 
-            time=prev_time,
-        ).sum(to_dims="time").data
-        prev_val = high_inf + low_inf * 2.0 / 3.0
-        prev_ll = dist.Normal(prev_targ, 0.0005).log_prob(prev_val[0])
+        high_inf = (
+            results["compartments"]
+            .query(compartment=(infect_strat["high"], adult_ages), time=prev_time)
+            .sum(to_dims="time")
+        )
+        low_inf = (
+            results["compartments"]
+            .query(compartment=(infect_strat["low"], adult_ages), time=prev_time)
+            .sum(to_dims="time")
+        )
+        on_rx = (
+            results["compartments"]
+            .query(
+                compartment=(disease_state["treatment"], adult_ages),
+                time=prev_time,
+            )
+            .sum(to_dims="time")
+        )
+        adult_pop = (
+            results["compartments"]
+            .query(compartment=adult_ages, time=prev_time)
+            .sum(to_dims="time")
+        )
+        prev_prop = (high_inf + low_inf * 2.0 / 3.0 + on_rx) / (adult_pop + 1e-32)
+        prev_ll = dist.Normal(prev_targ, 0.0005).log_prob(prev_prop.data[0])
 
         ll = latent_ll + notif_ll + death_ll + prev_ll
 
