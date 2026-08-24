@@ -3,11 +3,20 @@
 #SBATCH --job-name=test_tb
 #SBATCH --account=sh30
 
-#SBATCH --time=00:05:00
+#SBATCH --time=05:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=1G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=4096
 
-cd $SCRIPT_DIR/../..
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+cd "$SCRIPT_DIR/../.."
 
-pixi run python scripts/massive/calibrate.py
+# 4 JAX host devices (chains) x 2 threads, matching --cpus-per-task=8.
+# XLA_FLAGS must be set before Python starts so numpyro can pmap chains.
+export XLA_FLAGS="${XLA_FLAGS:+$XLA_FLAGS }--xla_force_host_platform_device_count=4"
+export JAX_PLATFORMS=cpu
+export OMP_NUM_THREADS=2
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+pixi run python scripts/massive/calibrate.py "$SLURM_JOB_ID"

@@ -37,6 +37,7 @@ BASE_PARAMS = {
     "detect_rate_current": 0.8,
     "rel_detect_2010": 0.8,
     "rel_detect_1986": 0.5,
+    "prop_lowinf_bactpos": 0.667,
 }
 PARAM_BOUNDS = {
     "raw_transmission_rate": [12.0, 20.0],

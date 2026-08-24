@@ -23,3 +23,8 @@ LATENT_TARGET = pd.Series(
         2019: 43.0,
     }
 )
+PREV_TARGET = pd.Series(
+    {
+        2017.0: 322.0,
+    }
+)

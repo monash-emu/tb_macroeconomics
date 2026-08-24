@@ -1,6 +1,9 @@
 from jax import numpy as jnp, lax
 import jax
 from collections import namedtuple
+import logging
+import sys
+from pathlib import Path
 
 InterpolatorScaleData = namedtuple(
     "InterpolatorScaleData", ["points", "ranges", "bounds"]
@@ -159,3 +162,20 @@ def get_four_element_multicurve(
     vals = get_scale_data(jnp.array([val_0, val_1, val_2, val_3]))
     return get_cos_multicurve(t, times, vals)
     
+
+def get_logger(log_file: Path):
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    root_logger = logging.getLogger()
+
+    if log_file:
+        file_handler = logging.FileHandler(log_file, mode="w")
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    root_logger.addHandler(stream_handler)
+
+    root_logger.setLevel(logging.INFO)
+
+    return root_logger

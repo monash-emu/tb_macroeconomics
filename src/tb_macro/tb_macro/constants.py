@@ -53,3 +53,6 @@ END_TIME = 2101.0
 
 # Calibration
 SOLVER_KWARGS = {"max_steps": 4000}
+N_RUNS_REMOTE = 200
+N_CHAINS_REMOTE = 4
+N_RUNS_LOCAL = 40
