@@ -7,6 +7,7 @@ from arviz import InferenceData
 from xarray.core import dataset
 
 from summer3.epi import ManagedArray, Stratification, CompartmentalEpiModel
+
 from tb_macro.constants import PREV_STATES, INFECTED_STATES, AGE_STRATA, SOLVER_KWARGS
 from tb_macro.parameters import BASE_PARAMS
 
@@ -66,40 +67,53 @@ def get_share_folder_file_path(
 
 
 # Functions for extracting outputs from results with common signatures
-def get_age_inc(results, age_strat, disease_state, clin_strat):
+def get_age_inc(results, age_strat, disease_state, clin_strat, infect_strat):
     return results["flows"]["progression"].sumcats(source=age_strat.categories())
 
 
-def get_age_prev(results, age_strat, disease_state, clin_strat):
+def get_age_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     states = results["compartments"].query(compartment=disease_state[PREV_STATES])
     return states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_clin_prev(results, age_strat, disease_state, clin_strat):
+def get_age_bact_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+    high_inf = results["compartments"].query(
+        compartment=infect_strat["high"]
+    ).sumcats(compartment=age_strat.categories())
+    low_inf = results["compartments"].query(
+        compartment=infect_strat["low"]
+    ).sumcats(compartment=age_strat.categories())
+    on_rx = results["compartments"].query(
+        compartment=disease_state["treatment"]
+    ).sumcats(compartment=age_strat.categories())
+    return high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
+
+
+def get_age_clin_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     states = results["compartments"].query(compartment=clin_strat["clin"])
     return states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_rx_prev(results, age_strat, disease_state, clin_strat):
+def get_age_rx_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     states = results["compartments"].query(compartment=disease_state["treatment"])
     return states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_recovered_prev(results, age_strat, disease_state, clin_strat):
+def get_age_recovered_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     states = results["compartments"].query(compartment=disease_state["recovered"])
     return states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_latent(results, age_strat, disease_state, clin_strat):
+def get_age_latent(results, age_strat, disease_state, clin_strat, infect_strat):
     infected_states = results["compartments"].query(compartment=disease_state[INFECTED_STATES])
     return infected_states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_notifs(results, age_strat, disease_state, clin_strat):
+def get_age_notifs(results, age_strat, disease_state, clin_strat, infect_strat):
     return results["flows"]["detection"].sumcats(source=age_strat.categories())
 
 
-def get_age_deaths(results, age_strat, disease_state, clin_strat):
+def get_age_deaths(results, age_strat, disease_state, clin_strat, infect_strat):
     community_death_age = results["flows"]["tb_mortality"].sumcats(
         source=age_strat.categories()
     )
@@ -107,11 +121,11 @@ def get_age_deaths(results, age_strat, disease_state, clin_strat):
     return community_death_age + rx_death_age
 
 
-def get_total_pop(results, age_strat, disease_state, clin_strat):
+def get_total_pop(results, age_strat, disease_state, clin_strat, infect_strat):
     return results["compartments"].sum(to_dims="time")
 
 
-def get_age_pop(results, age_strat, disease_state, clin_strat):
+def get_age_pop(results, age_strat, disease_state, clin_strat, infect_strat):
     return results["compartments"].sumcats(compartment=age_strat.categories())
 
 
@@ -330,6 +344,7 @@ def rerun_model_for_outputs(
     age_strat: Stratification,
     disease_state: Stratification,
     clin_strat: Stratification,
+    infect_strat: Stratification,
     idata: InferenceData,
     scen_params: List[Dict[str, float]],
     samples: dataset,
@@ -342,6 +357,7 @@ def rerun_model_for_outputs(
         age_strat: The age stratification object
         disease_state: The compartmental stratification object
         clin_strat: The clinical stratification object
+        infect_strat: The infectiousness stratification object
         idata: The inference data object
         scen_params: The scenario parameters
         samples: The parameter samples
@@ -352,6 +368,7 @@ def rerun_model_for_outputs(
     indicator_funcs = {
         "incidence": get_age_inc,
         "prevalence": get_age_prev,
+        "bact_prev": get_age_bact_prev,
         "latent": get_age_latent,
         "notifications": get_age_notifs,
         "deaths": get_age_deaths,
@@ -369,7 +386,7 @@ def rerun_model_for_outputs(
         for s, s_params in enumerate(scen_params):
             results = epi_model.run(BASE_PARAMS | c_params | s_params, solver_kwargs=SOLVER_KWARGS)
             for ind, func in indicator_funcs.items():
-                output = func(results, age_strat, disease_state, clin_strat).to_pandas_df()
+                output = func(results, age_strat, disease_state, clin_strat, infect_strat).to_pandas_df()
                 if is_age_stratified_output(output):
                     output.columns.name = "age_group"
                 outputs[s][ind].append(output)

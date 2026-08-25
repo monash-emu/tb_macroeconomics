@@ -102,6 +102,7 @@ COUNT_TITLES = {
     "notifications": "notified cases per year",
     "deaths": "deaths per year",
     "latent": "infected population number",
+    "bact_prev": "adult bacteriologically-confirmed cases",
 }
 RATE_TITLES = {
     "prevalence": "prevalence per 100,000",
@@ -109,6 +110,7 @@ RATE_TITLES = {
     "notifications": "notifications per 100,000 per year",
     "deaths": "deaths per 100,000 per year",
     "latent": "percentage with latent infection",
+    "bact_prev": "adult bacteriologically-confirmed prevalence per 100,000",
 }
 
 
@@ -125,6 +127,9 @@ def plot_outputs(
     plot_start: float,
     end_time: float,
     mode: str,
+    bact_prev: pd.DataFrame,
+    bact_prev_target: pd.Series,
+    adult_pop: pd.DataFrame,
 ) -> plt.figure:
     """Plot outputs from multiple model runs.
 
@@ -141,6 +146,10 @@ def plot_outputs(
         plot_start: Year to plot from
         end_time: End of simulation run
         mode: Whether to plot counts or rates
+        bact_prev: Adult bacteriologically-confirmed prevalence counts
+        bact_prev_target: Adult bacteriologically-confirmed prevalence
+            target - a rate (i.e. per 100,000)
+        adult_pop: Adult population size data
 
     Returns:
         The figure
@@ -156,17 +165,20 @@ def plot_outputs(
             "notifications": notif,
             "deaths": tb_death,
             "latent": latent,
+            "bact_prev": bact_prev,
         }
 
     elif mode == "rate":
         titles = RATE_TITLES
         latent_target.plot(ax=axes[2, 0], linewidth=0.0, marker="o", color="k", zorder=4)
+        bact_prev_target.plot(ax=axes[2, 1], linewidth=0.0, marker="o", color="k", zorder=4)
         data = {
             "prevalence": prev.div(total_pop, axis=0) * 1e5,
             "incidence": inc.div(total_pop, axis=0) * 1e5,
             "notifications": notif.div(total_pop, axis=0) * 1e5,
             "deaths": tb_death.div(total_pop, axis=0) * 1e5,
             "latent": latent.div(total_pop, axis=0) * 1e2,
+            "bact_prev": bact_prev.div(adult_pop, axis=0) * 1e5,
         }
     else:
         raise ValueError(f"Unknown mode '{mode}'. Expected 'count' or 'rate'.")
@@ -177,6 +189,7 @@ def plot_outputs(
         "notifications": axes[1, 0],
         "deaths": axes[1, 1],
         "latent": axes[2, 0],
+        "bact_prev": axes[2, 1],
     }
 
     for out in ax_locs:
@@ -187,7 +200,6 @@ def plot_outputs(
             legend=False,
             xlim=[plot_start, end_time - 1],
         )
-    axes[2, 1].set_axis_off()
 
     for ax in axes.ravel():
         ax.set_ylim(bottom=0.0)
