@@ -3,10 +3,8 @@ from jax import jit
 from numpyro import distributions as dist
 import diffrax as dfx
 
-from summer3.epi import CompartmentalModelODE, build_istate, dti_to_epoch
-
 from tb_macro.constants import AGE_STRATA, INFECTED_STATES, YOUNG_END_AGE
-from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET, PREV_TARGET
+from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET, PREV_TARGET, INF_PREV_TARGET
 from tb_macro.parameters import BASE_PARAMS
 
 
@@ -50,10 +48,8 @@ def get_death_log_likelihood(results, who_mort):
     return dist.Normal(who_mort.to_numpy(), 5e3).log_prob(deaths).mean()
 
 
-def get_prevalence_log_likelihood(results, disease_state, age_strat, infect_strat):
+def get_adult_bact_prev(results, disease_state, age_strat, infect_strat, target_time):
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    target_time = PREV_TARGET.index[0]
-    target_val = PREV_TARGET.iloc[0] / 1e5
     high_inf = (
         results["compartments"]
         .query(compartment=(infect_strat["high"], adult_ages), time=target_time)
@@ -77,10 +73,30 @@ def get_prevalence_log_likelihood(results, disease_state, age_strat, infect_stra
         .query(compartment=adult_ages, time=target_time)
         .sum(to_dims="time")
     )
-    prev_prop = (
-        high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
-    ) / (adult_pop + 1e-32)
+    bact_prev = high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
+    return high_inf, bact_prev, adult_pop
+
+
+def get_bactpos_prev_log_likelihood(results, disease_state, age_strat, infect_strat):
+    target_time = PREV_TARGET.index[0]
+    target_val = PREV_TARGET.iloc[0] / 1e5
+    _, bact_prev, adult_pop = get_adult_bact_prev(
+        results, disease_state, age_strat, infect_strat, target_time
+    )
+    prev_prop = bact_prev / (adult_pop + 1e-32)
     return dist.Normal(target_val, 0.0005).log_prob(prev_prop.data[0])
+
+
+def get_infprop_log_likelihood(
+    results, disease_state, age_strat, infect_strat
+):
+    target_time = INF_PREV_TARGET.index[0]
+    target_val = INF_PREV_TARGET.iloc[0]
+    high_inf, bact_prev, _ = get_adult_bact_prev(
+        results, disease_state, age_strat, infect_strat, target_time
+    )
+    inf_prop = high_inf / (bact_prev + 1e-32)
+    return dist.Normal(target_val, 0.05).log_prob(inf_prop.data[0])
 
 
 def make_log_likelihood(
@@ -98,7 +114,10 @@ def make_log_likelihood(
             get_latent_log_likelihood(results, disease_state)
             + get_notification_log_likelihood(results)
             + get_death_log_likelihood(results, who_mort)
-            + get_prevalence_log_likelihood(
+            + get_bactpos_prev_log_likelihood(
+                results, disease_state, age_strat, infect_strat
+            )
+            + get_infprop_log_likelihood(
                 results, disease_state, age_strat, infect_strat
             )
         )
