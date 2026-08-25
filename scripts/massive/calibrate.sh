@@ -8,7 +8,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=4096
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+# SCRIPT_DIR is exported by launch.sh from the login-node path.
+# Do not recompute it from BASH_SOURCE: Slurm executes a copy under /var/spool.
 cd "$SCRIPT_DIR/../.."
 
 # 4 JAX host devices (chains) x 2 threads, matching --cpus-per-task=8.
