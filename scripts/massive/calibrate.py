@@ -8,7 +8,6 @@ from tb_macro.constants import (
     END_TIME,
     AGE_STRATA,
     SOLVER_KWARGS,
-    N_RUNS_REMOTE,
     N_CHAINS_REMOTE,
 )
 
@@ -32,6 +31,7 @@ from tb_macro.calibration import make_log_likelihood
 
 if __name__ == "__main__":
     task = sys.argv[1]
+    n_runs = int(sys.argv[2])
     path = OUTPUT_PATH / task
     path.mkdir(parents=True, exist_ok=True)
     logger = get_logger(path / "run.log")
@@ -70,8 +70,8 @@ if __name__ == "__main__":
     kernel = infer.NUTS(model, max_tree_depth=5, init_strategy=infer.init_to_median())
     mcmc = infer.MCMC(
         kernel,
-        num_warmup=N_RUNS_REMOTE,
-        num_samples=N_RUNS_REMOTE,
+        num_warmup=n_runs,
+        num_samples=n_runs,
         num_chains=N_CHAINS_REMOTE,
     )
     mcmc.run(PRNGKey(2))
