@@ -28,3 +28,8 @@ PREV_TARGET = pd.Series(
         2017.0: 322.0,
     }
 )
+INF_PREV_TARGET = pd.Series(
+    {
+        2017.0: 79.0 / 322.0,
+    }
+)

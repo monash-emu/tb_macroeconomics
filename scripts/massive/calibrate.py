@@ -27,7 +27,7 @@ from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS
 from tb_macro.inputs import load_demography, load_fertility, load_who_outcomes
 from tb_macro.demography import prepare_pop_data_for_entries
 from tb_macro.epi import get_base_model, add_flows_to_model, initialise_pops
-from tb_macro.calibration import make_log_likelihood, get_runner
+from tb_macro.calibration import make_log_likelihood
 
 
 if __name__ == "__main__":
@@ -35,7 +35,6 @@ if __name__ == "__main__":
     path = OUTPUT_PATH / task
     path.mkdir(parents=True, exist_ok=True)
     logger = get_logger(path / "run.log")
-    logger.info("JAX devices (%s): %s", jax.device_count(), jax.devices())
 
     group_popsize, death_rates, age_weights = load_demography(ISO3)
     fert_padded = load_fertility(ISO3)
@@ -59,7 +58,6 @@ if __name__ == "__main__":
         entry_rates,
     )
     initialise_pops(epi_model, disease_state, age_strat, start_apops)
-    runner, istate = get_runner(epi_model)
 
     priors = {k: dist.Uniform(v[0], v[1]) for k, v in PARAM_BOUNDS.items()}
     log_like = make_log_likelihood(epi_model, disease_state, age_strat, infect_strat, SOLVER_KWARGS, who_mort)
