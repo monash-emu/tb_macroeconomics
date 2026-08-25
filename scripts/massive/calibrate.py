@@ -75,7 +75,6 @@ if __name__ == "__main__":
         num_warmup=N_RUNS_REMOTE,
         num_samples=N_RUNS_REMOTE,
         num_chains=N_CHAINS_REMOTE,
-        chain_method="parallel",
     )
     mcmc.run(PRNGKey(2))
     idata = az.from_numpyro(mcmc)
