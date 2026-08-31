@@ -85,6 +85,23 @@ def add_natural_history(
         age_strat: The age stratification object
         clin_strat: The clinical stratification
         infect_strat: The infectiousness stratification
+
+    Notes:
+    -----
+    After infection is contained, clearance occurs at rate {clearance_rate}
+    (prior range {clearance_rate_low} to {clearance_rate_up}) and endogenous
+    reactivation (breakdown) at rate {breakdown_rate} (prior range
+    {breakdown_rate_low} to {breakdown_rate_up}).
+
+    Among people with active TB, infectiousness and symptoms can each
+    increase or decrease. Infectiousness is gained at rate
+    {infectiousness_gain_rate} and lost at rate {infectiousness_loss_rate};
+    clinical disease develops at rate {clinical_progression_rate} and
+    regresses at rate {clinical_regression_rate}.
+
+    Subclinical disease may self-resolve at rate {self_recovery_rate}.
+    Untreated clinical TB causes death at {tb_mortality_rate_inf} per year
+    if infectious and {tb_mortality_rate_lowinf} if not.
     """
     source = disease_state["contained"]
     dest = disease_state["cleared"]
@@ -276,6 +293,12 @@ def add_seeding(
         epi_model: The epidemiological model to add the flows to
         disease_state: The compartmental stratification object
         start_time: Run start time
+
+    Notes:
+    -----
+    Infection is seeded from the Mtb-naive compartment into incipient
+    infection with a triangular pulse peaking in {seed_peak_time}, lasting
+    {seed_duration} years, at a peak rate of {seed_peak_rate}.
     """
     peak_time = Parameter("seed_peak_time", 0.0)
     peak_height = Parameter("seed_peak_rate", 0.0)
