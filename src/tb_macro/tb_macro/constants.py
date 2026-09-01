@@ -50,6 +50,7 @@ ISO3 = "VNM"
 # Times
 START_TIME = 1800.0
 END_TIME = 2101.0
+CALENDAR_YEAR_MIDPOINT = 0.5
 
 # Calibration
 SOLVER_KWARGS = {"max_steps": 4000}

@@ -76,7 +76,7 @@ def get_age_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     return states.sumcats(compartment=age_strat.categories())
 
 
-def get_age_bact_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+def get_age_pulm_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     high_inf = results["compartments"].query(
         compartment=infect_strat["high"]
     ).sumcats(compartment=age_strat.categories())
@@ -368,7 +368,7 @@ def rerun_model_for_outputs(
     indicator_funcs = {
         "incidence": get_age_inc,
         "prevalence": get_age_prev,
-        "bact_prev": get_age_bact_prev,
+        "pulm_prev": get_age_pulm_prev,
         "latent": get_age_latent,
         "notifications": get_age_notifs,
         "deaths": get_age_deaths,

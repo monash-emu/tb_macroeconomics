@@ -102,7 +102,7 @@ COUNT_TITLES = {
     "notifications": "notified cases per year",
     "deaths": "deaths per year",
     "latent": "infected population number",
-    "bact_prev": "adult bacteriologically-confirmed cases",
+    "pulm_prev": "adult pulmonary bacteriologically-detectable cases",
 }
 RATE_TITLES = {
     "prevalence": "prevalence per 100,000",
@@ -110,8 +110,47 @@ RATE_TITLES = {
     "notifications": "notifications per 100,000 per year",
     "deaths": "deaths per 100,000 per year",
     "latent": "percentage with latent infection",
-    "bact_prev": "adult bacteriologically-confirmed prevalence per 100,000",
+    "pulm_prev": "adult pulmonary bacteriologically-detectable prevalence per 100,000",
 }
+
+
+def add_pulm_prev_decline_arrow(
+    ax: plt.Axes,
+    pulm_prev_target: pd.Series,
+    prev_decline_target: pd.Series,
+) -> None:
+    """Draw the implied 2007 prevalence from the 2017 target and relative decline.
+
+    The arrow starts at the 2017 pulmonary prevalence target and extends back
+    and up at the survey decline rate, so the point is
+    (base year, 2017 target * 2007 survey / 2017 survey).
+    """
+    later_year = float(pulm_prev_target.index[0])
+    later_prev = float(pulm_prev_target.iloc[0])
+    decline = prev_decline_target.sort_index()
+    base_year = float(decline.index[0])
+    implied_base_prev = later_prev * float(decline.iloc[0]) / float(decline.iloc[1])
+    ax.scatter(
+        [base_year],
+        [implied_base_prev],
+        marker="o",
+        facecolors="none",
+        edgecolors="k",
+        zorder=5,
+    )
+    ax.annotate(
+        "",
+        xy=(base_year, implied_base_prev),
+        xytext=(later_year, later_prev),
+        arrowprops={
+            "arrowstyle": "->",
+            "color": "k",
+            "lw": 1.2,
+            "shrinkA": 4,
+            "shrinkB": 4,
+        },
+        zorder=5,
+    )
 
 
 def plot_outputs(
@@ -127,9 +166,10 @@ def plot_outputs(
     plot_start: float,
     end_time: float,
     mode: str,
-    bact_prev: pd.DataFrame,
-    bact_prev_target: pd.Series,
+    pulm_prev: pd.DataFrame,
+    pulm_prev_target: pd.Series,
     adult_pop: pd.DataFrame,
+    prev_decline_target: pd.Series = None,
 ) -> plt.figure:
     """Plot outputs from multiple model runs.
 
@@ -146,10 +186,12 @@ def plot_outputs(
         plot_start: Year to plot from
         end_time: End of simulation run
         mode: Whether to plot counts or rates
-        bact_prev: Adult bacteriologically-confirmed prevalence counts
-        bact_prev_target: Adult bacteriologically-confirmed prevalence
+        pulm_prev: Adult pulmonary bacteriologically-detectable prevalence counts
+        pulm_prev_target: Adult pulmonary bacteriologically-detectable prevalence
             target - a rate (i.e. per 100,000)
         adult_pop: Adult population size data
+        prev_decline_target: Culture-positive survey points used only to show
+            the implied relative decline on the pulmonary prevalence panel
 
     Returns:
         The figure
@@ -165,20 +207,20 @@ def plot_outputs(
             "notifications": notif,
             "deaths": tb_death,
             "latent": latent,
-            "bact_prev": bact_prev,
+            "pulm_prev": pulm_prev,
         }
 
     elif mode == "rate":
         titles = RATE_TITLES
         latent_target.plot(ax=axes[2, 0], linewidth=0.0, marker="o", color="k", zorder=4)
-        bact_prev_target.plot(ax=axes[2, 1], linewidth=0.0, marker="o", color="k", zorder=4)
+        pulm_prev_target.plot(ax=axes[2, 1], linewidth=0.0, marker="o", color="k", zorder=4)
         data = {
             "prevalence": prev.div(total_pop, axis=0) * 1e5,
             "incidence": inc.div(total_pop, axis=0) * 1e5,
             "notifications": notif.div(total_pop, axis=0) * 1e5,
             "deaths": tb_death.div(total_pop, axis=0) * 1e5,
             "latent": latent.div(total_pop, axis=0) * 1e2,
-            "bact_prev": bact_prev.div(adult_pop, axis=0) * 1e5,
+            "pulm_prev": pulm_prev.div(adult_pop, axis=0) * 1e5,
         }
     else:
         raise ValueError(f"Unknown mode '{mode}'. Expected 'count' or 'rate'.")
@@ -189,7 +231,7 @@ def plot_outputs(
         "notifications": axes[1, 0],
         "deaths": axes[1, 1],
         "latent": axes[2, 0],
-        "bact_prev": axes[2, 1],
+        "pulm_prev": axes[2, 1],
     }
 
     for out in ax_locs:
@@ -200,6 +242,16 @@ def plot_outputs(
             legend=False,
             xlim=[plot_start, end_time - 1],
         )
+
+    if (
+        mode == "rate"
+        and pulm_prev_target is not None
+        and prev_decline_target is not None
+    ):
+        pulm_ax = ax_locs["pulm_prev"]
+        add_pulm_prev_decline_arrow(pulm_ax, pulm_prev_target, prev_decline_target)
+        pulm_ax.relim()
+        pulm_ax.autoscale_view(scalex=False, scaley=True)
 
     for ax in axes.ravel():
         ax.set_ylim(bottom=0.0)

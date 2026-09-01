@@ -3,7 +3,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from tb_macro.constants import BASE_PATH, DATA_PATH, AGE_STRATA, MAX_AGE
+from tb_macro.constants import BASE_PATH, DATA_PATH, AGE_STRATA, MAX_AGE, CALENDAR_YEAR_MIDPOINT
 
 
 def get_country_pop(
@@ -268,7 +268,7 @@ def calc_tsr_from_outcomes(
     denom = data[denom_cols].sum(axis=1)
     tsr = num / denom
     tsr = tsr.where(denom > 0)
-    tsr.index = data["year"]
+    tsr.index = data["year"].astype(float) + CALENDAR_YEAR_MIDPOINT
     return tsr.sort_index()
 
 
@@ -313,7 +313,7 @@ def calc_death_in_unsucc_outcomes(
     denom = data[denom_cols].sum(axis=1)
     prop_death_unsucc = num / denom
     prop_death_unsucc = prop_death_unsucc.where(denom > 0)
-    prop_death_unsucc.index = data["year"]
+    prop_death_unsucc.index = data["year"].astype(float) + CALENDAR_YEAR_MIDPOINT
     return prop_death_unsucc
 
 
@@ -330,7 +330,7 @@ def get_country_indicators(
     """
     data = pd.read_csv(DATA_PATH / "who/who_indicators_20260528T0213Z.csv")
     country_data = data[data["iso3"] == iso3]
-    country_data.index = country_data["year"]
+    country_data.index = country_data["year"].astype(float) + CALENDAR_YEAR_MIDPOINT
     return country_data
 
 
