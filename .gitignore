@@ -213,3 +213,9 @@ __marimo__/
 
 # Calibration outputs
 outputs/*
+
+# Quarto renders
+/.quarto/
+notebooks/*.html
+notebooks/*.pdf
+notebooks/*_files/
