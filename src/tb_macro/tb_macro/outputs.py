@@ -131,9 +131,43 @@ def get_age_pop(results, age_strat, disease_state, clin_strat, infect_strat):
 
 def get_posterior_samples(idata, n_samples):
     posterior = idata.posterior.stack(sample=("chain", "draw"))
+    n_available = posterior.sizes["sample"]
+    n_take = min(n_samples, n_available)
     rng = np.random.default_rng(0)
-    idxs = rng.choice(posterior.sizes["sample"], size=n_samples, replace=False)
+    idxs = rng.choice(n_available, size=n_take, replace=False)
     return posterior.isel(sample=idxs)
+
+
+def save_sampled_outputs(
+    path: Path,
+    outputs: List[Dict[str, List[pd.DataFrame]]],
+    sample_labels: List[str],
+) -> None:
+    """Pickle nested outputs and sample labels from rerun_model_for_outputs.
+
+    Args:
+        path: Destination pickle path
+        outputs: Nested outputs from rerun_model_for_outputs
+        sample_labels: Chain/draw labels aligned with the sample lists
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.to_pickle({"outputs": outputs, "sample_labels": sample_labels}, path)
+
+
+def load_sampled_outputs(
+    path: Path,
+) -> tuple[List[Dict[str, List[pd.DataFrame]]], List[str]]:
+    """Load nested outputs and sample labels saved by save_sampled_outputs.
+
+    Args:
+        path: Pickle path written by save_sampled_outputs
+
+    Returns:
+        The nested outputs and sample labels
+    """
+    payload = pd.read_pickle(path)
+    return payload["outputs"], payload["sample_labels"]
 
 
 def collate_output_table(

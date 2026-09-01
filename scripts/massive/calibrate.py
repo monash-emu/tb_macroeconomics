@@ -9,6 +9,8 @@ from tb_macro.constants import (
     AGE_STRATA,
     SOLVER_KWARGS,
     N_CHAINS_REMOTE,
+    N_OUTPUT_SAMPLES,
+    SCENARIO_PARAMS,
 )
 
 # Must run before JAX is imported (including via tb_macro / numpyro.infer).
@@ -27,6 +29,11 @@ from tb_macro.inputs import load_demography, load_fertility, load_who_outcomes
 from tb_macro.demography import prepare_pop_data_for_entries
 from tb_macro.epi import get_base_model, add_flows_to_model, initialise_pops
 from tb_macro.calibration import make_log_likelihood
+from tb_macro.outputs import (
+    get_posterior_samples,
+    rerun_model_for_outputs,
+    save_sampled_outputs,
+)
 
 
 if __name__ == "__main__":
@@ -78,3 +85,16 @@ if __name__ == "__main__":
     idata = az.from_numpyro(mcmc)
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%MZ")
     idata.to_netcdf(path / f"{timestamp}.nc")
+
+    samples = get_posterior_samples(idata, N_OUTPUT_SAMPLES)
+    outputs, sample_labels = rerun_model_for_outputs(
+        epi_model,
+        age_strat,
+        disease_state,
+        clin_strat,
+        infect_strat,
+        idata,
+        SCENARIO_PARAMS,
+        samples,
+    )
+    save_sampled_outputs(path / f"{timestamp}_outputs.pkl", outputs, sample_labels)
