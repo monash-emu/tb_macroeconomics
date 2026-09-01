@@ -27,6 +27,7 @@ from tb_macro.constants import (
     START_TIME,
     YOUNG_END_AGE,
     TOP_AGE_BRACKET_INFLATION,
+    OUTPUT_TIME_STEP,
 )
 from tb_macro.utils import get_triang_vals
 from tb_macro.mixing import get_norm_c_matrix
@@ -60,7 +61,7 @@ def get_base_model(
     humans.stratify(infect_strat, (disease_state, ["active"]))
     clin_strat = Stratification("clinical", ["subclin", "clin"])
     humans.stratify(clin_strat, (disease_state, ["active"]))
-    times = pd.Index(np.arange(start_time, end_time, 1.0))
+    times = pd.Index(np.arange(start_time, end_time, OUTPUT_TIME_STEP))
     return ModelSpec(
         CompartmentalEpiModel(humans, times),
         disease_state,
