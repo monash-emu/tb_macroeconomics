@@ -78,6 +78,11 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Quarto / LaTeX notebook outputs
+notebooks/*.pdf
+notebooks/*.tex
+notebooks/*.aux
+
 # IPython
 profile_default/
 ipython_config.py

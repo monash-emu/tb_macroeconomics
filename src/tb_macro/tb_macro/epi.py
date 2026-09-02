@@ -92,7 +92,8 @@ def add_natural_history(
     reactivation (breakdown).
 
     Among people with active TB, infectiousness and symptoms can each
-    increase or decrease.
+    increase or decrease according to 
+    the "{{infectiousness_gain_rate}}" parameter.
 
     Subclinical disease may self-resolve.
     Untreated clinical TB causes death.

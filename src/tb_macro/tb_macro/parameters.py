@@ -57,4 +57,9 @@ PARAM_BOUNDS = {
 }
 PARAM_NAMES = {
     "rel_infectiousness_subclin": "relative infectiousness of subclinical TB",
+    "infectiousness_gain_rate": "rate of infectiousness increase",
 }
+
+_unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
+if _unknown_name:
+    raise ValueError(f"PARAM_NAMES keys absent from BASE_PARAMS: {_unknown_name}")

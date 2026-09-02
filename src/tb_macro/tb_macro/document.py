@@ -1,7 +1,3 @@
-"""Pull methods text from the code, formatting numeric values on the way out."""
-
-from __future__ import annotations
-
 import inspect
 import math
 import re
@@ -63,6 +59,7 @@ def _get_name_mapping() -> dict[str, str]:
     Further mapping can be extended to other files here.
     """
     namespace = {}
+
     for name, value in vars(constants).items():
 
         # Variable names must be in upper case
@@ -76,7 +73,7 @@ def _get_name_mapping() -> dict[str, str]:
         # Scalars are formatted for display, lists are comma-joined
         namespace[name] = md_number(value)
 
-    return namespace
+    return namespace | PARAM_NAMES
 
 
 def _interpolate_notes_str(text: str, namespace: dict[str, str]) -> str:
