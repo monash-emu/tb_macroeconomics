@@ -55,3 +55,6 @@ PARAM_BOUNDS = {
     "rel_detect_2010": [0.5, 1.0],
     "rel_detect_1986": [0.25, 0.75],
 }
+PARAM_NAMES = {
+    "rel_infectiousness_subclin": "relative infectiousness of subclinical TB",
+}

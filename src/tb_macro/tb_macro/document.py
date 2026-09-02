@@ -12,6 +12,7 @@ from typing import Any, Callable
 import pandas as pd
 
 import tb_macro.constants as constants
+from tb_macro.parameters import PARAM_NAMES
 
 
 _NOTES_SPLIT = re.compile(r"\nNotes:\s*\n(?:-+\s*\n)?")
@@ -120,11 +121,13 @@ def get_func_notes(function: Callable) -> str:
 def build_fixed_params_table(params: dict[str, Any]) -> pd.DataFrame:
     """Return a DataFrame of formatted parameter values."""
     vals = [md_number(val) for val in params.values()]
-    return pd.DataFrame({"value": vals}, index=params.keys()).rename_axis("Parameter")
+    index = [PARAM_NAMES.get(param, param) for param in params]
+    return pd.DataFrame({"value": vals}, index=index).rename_axis("Parameter")
 
 
 def build_prior_ranges_table(bounds: dict[str, list[float]]) -> pd.DataFrame:
     """Return a DataFrame of formatted prior bounds."""
     vals = [(md_number(low), md_number(high)) for low, high in bounds.values()]
+    index = [PARAM_NAMES.get(param, param) for param in bounds]
     cols = ["lower", "upper"]
-    return pd.DataFrame(vals, index=bounds.keys(), columns=cols).rename_axis("Parameter")
+    return pd.DataFrame(vals, index=index, columns=cols).rename_axis("Parameter")
