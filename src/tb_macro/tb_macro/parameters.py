@@ -58,6 +58,11 @@ PARAM_BOUNDS = {
 PARAM_NAMES = {
     "rel_infectiousness_subclin": "relative infectiousness of subclinical TB",
     "infectiousness_gain_rate": "rate of infectiousness increase",
+    "acf_coverage": "active case finding coverage",
+    "acf_sensitivity": "active case finding sensitivity",
+    "acf_start": "active case finding start year",
+    "acf_duration": "active case finding duration",
+    "acf_scaling_time": "active case finding scale-up time",
 }
 
 _unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
