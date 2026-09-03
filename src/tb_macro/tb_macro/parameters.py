@@ -55,3 +55,16 @@ PARAM_BOUNDS = {
     "rel_detect_2010": [0.5, 1.0],
     "rel_detect_1986": [0.25, 0.75],
 }
+PARAM_NAMES = {
+    "rel_infectiousness_subclin": "relative infectiousness of subclinical TB",
+    "infectiousness_gain_rate": "rate of infectiousness increase",
+    "acf_coverage": "active case finding coverage",
+    "acf_sensitivity": "active case finding sensitivity",
+    "acf_start": "active case finding start year",
+    "acf_duration": "active case finding duration",
+    "acf_scaling_time": "active case finding scale-up time",
+}
+
+_unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
+if _unknown_name:
+    raise ValueError(f"PARAM_NAMES keys absent from BASE_PARAMS: {_unknown_name}")
