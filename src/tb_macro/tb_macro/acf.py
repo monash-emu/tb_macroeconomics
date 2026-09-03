@@ -26,7 +26,7 @@ def add_acf(
     disease_state: Stratification,
     start_time: float,
 ):
-    """Add the active case finding process to the model.
+    r"""Add the active case finding process to the model.
 
     Args:
         epi_model: The epidemiological model to add the flows to
@@ -39,7 +39,7 @@ def add_acf(
     detected cases into treatment. Unlike routine detection, this
     includes subclinical disease.
 
-    The peak rate is given by $-\ln(1 - c) \\times s$, where $c$ is
+    The peak rate is given by $-\ln(1 - c) \times s$, where $c$ is
     "{{acf_coverage}}" and $s$ is "{{acf_sensitivity}}".
     This converts annual coverage into a hazard over time,
     and then scales this rate by diagnostic sensitivity.

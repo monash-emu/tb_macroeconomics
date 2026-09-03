@@ -63,6 +63,7 @@ PARAM_NAMES = {
     "acf_start": "active case finding start year",
     "acf_duration": "active case finding duration",
     "acf_scaling_time": "active case finding scale-up time",
+    "prop_lowinf_bactpos": "proportion of low infectiousness TB that is bacteriologically positive",
 }
 
 _unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
