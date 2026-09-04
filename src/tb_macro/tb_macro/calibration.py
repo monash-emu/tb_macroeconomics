@@ -42,12 +42,12 @@ def _log_normal_log_prob(modelled, target, sd=COUNT_LOG_SD):
     """Compare a count or ratio against its target on the log scale.
 
     Args:
-        modelled: The quantity emitted by the model
-        target: The observed or estimated value to compare against
-        sd: The standard deviation of the comparison on the log scale
+        modelled: The modelled values
+        target: The observation to compare against
+        sd: The standard deviation of the comparison in log space
 
     Returns:
-        The log-density of the modelled quantity, element-wise
+        The log-densities of the comparisons
     """
     modelled = jnp.maximum(modelled, _EPS)
     target = jnp.maximum(jnp.asarray(target), _EPS)
@@ -58,12 +58,12 @@ def _logit_normal_log_prob(modelled, target, sd=PROP_LOGIT_SD):
     """Compare a proportion against its target on the log-odds scale.
 
     Args:
-        modelled: The proportion emitted by the model
-        target: The observed or estimated proportion to compare against
+        modelled: The modelled proportion
+        target: The observed proportion to compare against
         sd: The standard deviation of the comparison on the log-odds scale
 
     Returns:
-        The log-density of the modelled proportion, element-wise
+        The log-densities of the comparisons
     """
     return dist.Normal(_logit(jnp.asarray(target)), sd).log_prob(_logit(modelled))
 
@@ -80,17 +80,17 @@ def get_latent_log_likelihood(results: dict, disease_state: Stratification):
 
     Notes:
     -----
-    The proportion of the population ever infected with _Mtb_ is compared
+    The proportion of the population ever infected with _Mtb_ was compared
     against the estimate from the tuberculin survey reported by Marks et al.
-    (Bulletin of the World Health Organization). (The target was published as
-    a percentage and has been converted to a proportion.)
+    (Bulletin of the World Health Organization).
 
-    The modelled equivalent is everyone outside the Mtb-naive compartment,
-    that is the {{INFECTED_STATES}} states, divided by the total population
-    at the time of the survey. All ages contribute to both the numerator and
-    the denominator.
+    The modelled equivalent is everyone not previously infected with 
+    _Mtb_, which is represented by all modelled compartments other than
+    _Mtb_ naive. That is, the {{INFECTED_STATES}} states, 
+    divided by the total population at the time of the survey.
+    All modelled age groups contributed to both the numerator and the denominator.
 
-    Being a proportion, this quantity is compared on the log-odds scale with
+    Being a proportion, this quantity was compared on the log-odds scale with
     a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = LATENT_TARGET.index[0]
@@ -116,19 +116,19 @@ def get_notification_log_likelihood(results: dict):
 
     Notes:
     -----
-    Modelled case detections are compared against the notifications
-    obtained from the Vietnam National Tuberculosis Programme. These are
+    Modelled case detections were compared against the notifications
+    obtained from the Vietnam National Tuberculosis Program. These are
     reported by calendar year, and so are offset by
-    {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year in model time.
-    Only the routine detection flow contributes, with active case finding
-    considered separately.
+    {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year in model time
+    (because we consider whole numbers of years in modelled time 
+    to represent the starts and ends of years).
 
-    Notifications are counts, so they are compared on the log scale with a
-    standard deviation of {{COUNT_LOG_SD}}, which makes the discrepancy
-    proportional to the size of the target rather than absolute. The
-    log-density is averaged rather than summed over the years of data, so
-    that this multi-year series carries comparable weight to the
-    single-point targets.
+    As counts, notifications are compared on the log scale with a
+    standard deviation of {{COUNT_LOG_SD}}, which relates the difference
+    to the size of the target, rather than being absolute.
+    The log-density is averaged rather than summed over the years of data, so
+    that this multi-year series contributes comparable weight to the likelihood
+    as the single-point targets.
     """
     notif = (
         results["flows"]["detection"]
@@ -193,8 +193,9 @@ def get_adult_pulm_prev(
         target_time: The time at which to evaluate prevalence
 
     Returns:
-        The highly infectious population, the prevalent population and
-            the total adult population
+        The highly infectious population size,
+            the prevalent population size and
+            the total adult population size
 
     Notes:
     -----
@@ -202,13 +203,12 @@ def get_adult_pulm_prev(
     bacteriologically confirmed prevalence survey, and so is restricted to
     adults, taken here as those aged {{YOUNG_END_AGE}} years and over.
 
-    Three groups contribute to the numerator: everyone with active disease
+    Three groups contribute to the numerator: all those with active disease
     in the high infectiousness stratum, a fraction of those in the low
     infectiousness stratum given by the "{{prop_lowinf_bactpos}}", and
-    everyone currently receiving treatment. Treated people are included
-    because a survey would also ascertain them. Clinical status does not
-    enter this calculation, so subclinical disease contributes on the same
-    basis as clinical disease.
+    everyone currently receiving treatment. Clinical status does not
+    enter this calculation, such that subclinical disease contributes 
+    on the same basis as clinical disease.
 
     The denominator is the total adult population at the same time point.
     """
@@ -259,12 +259,12 @@ def get_pulm_prev_log_likelihood(
 
     Notes:
     -----
-    Modelled adult prevalence of bacteriologically confirmed pulmonary TB is
+    Modelled adult prevalence of bacteriologically confirmed pulmonary TB was
     compared against the second Vietnamese national prevalence survey
     (PLOS One). The target is published per 100,000 population and converted
     to a proportion of the adult population.
 
-    Being a proportion, this quantity is compared on the log-odds scale with
+    Being a proportion, this quantity was compared on the log-odds scale with
     a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = PULM_PREV_TARGET.index[0]
@@ -282,7 +282,8 @@ def get_prev_decline_log_likelihood(
     age_strat: Stratification,
     infect_strat: Stratification,
 ):
-    r"""Get the likelihood contribution from the decline in TB prevalence.
+    r"""Get the likelihood contribution from the decline in TB prevalence
+    over serial prevalence surveys.
 
     Args:
         results: The outputs of a single model run
@@ -296,11 +297,11 @@ def get_prev_decline_log_likelihood(
     Notes:
     -----
     The two survey rounds reported by Nguyen et al. (Emerging Infectious
-    Diseases) are used to target the decline in prevalence rather than its
-    level. Only the ratio of the later to the earlier estimate is taken, so
-    the target constrains the trend in prevalence while remaining
-    insensitive to any constant offset between the quantity these surveys
-    ascertained and the model's definition of prevalence.
+    Diseases) are used to target the decline in prevalence rather than absolute values.
+    Only the ratio of the later to the earlier estimate is taken, 
+    so that the target constrains the trend in prevalence while remaining
+    insensitive to any discrepancy between the quantity these surveys
+    assess and our definition of prevalence.
 
     The modelled ratio applies the same adult prevalence definition at both
     time points. The ratio is strictly positive, so it is compared on the
@@ -340,17 +341,17 @@ def get_infprop_log_likelihood(
 
     Notes:
     -----
-    The proportion of prevalent adult TB that is highly infectious is
+    The proportion of prevalent adult TB that is highly infectious was
     compared against the equivalent proportion from the second Vietnamese
     national prevalence survey.
 
     The numerator is the high infectiousness stratum of the active
-    compartment and the denominator is total adult prevalence as defined
+    compartment and the denominator is total adult prevalence, as defined
     above. This target therefore constrains how prevalent disease is
     distributed across the infectiousness strata, without further
     constraining the overall size of the prevalent pool.
 
-    Being a proportion, this quantity is compared on the log-odds scale with
+    As a proportion, this quantity is compared on the log-odds scale with
     a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = INF_PREV_TARGET.index[0]
@@ -386,10 +387,10 @@ def make_log_likelihood(
     Notes:
     -----
     The log-likelihood is the sum of six contributions, taken as
-    independent: the prevalence of Mtb infection, case notifications, TB
-    deaths, adult bacteriologically confirmed prevalence, the decline in
-    prevalence between survey rounds, and the proportion of prevalent
-    disease that is highly infectious.
+    independent: the prevalence of _Mtb_ infection, case notifications, TB
+    deaths, adult bacteriologically-confirmed prevalence, the decline in
+    prevalence between the two prevalence survey rounds,
+    and the proportion of prevalent disease that is highly infectious.
 
     Two error models are applied throughout. Counts and ratios are compared
     on the log scale, as
