@@ -16,6 +16,7 @@ from tb_macro.demography import (
     add_replacement_deaths,
     add_ageing_flows,
     add_entry_births,
+    inflate_oldest_death_rates,
 )
 from tb_macro.health_system import add_treatment_flows, add_detection
 from summer3.arrayops import mul_ma_catdata
@@ -26,7 +27,6 @@ from tb_macro.constants import (
     INFECT_COMPS,
     START_TIME,
     YOUNG_END_AGE,
-    TOP_AGE_BRACKET_INFLATION,
     OUTPUT_TIME_STEP,
 )
 from tb_macro.utils import get_triang_vals
@@ -407,8 +407,7 @@ def add_flows_to_model(
         entry_times: Entry years
         entry_rates: Calculated entry rates to match population
     """
-    death_rates = death_rates.copy()
-    death_rates[AGE_STRATA[-1]] *= TOP_AGE_BRACKET_INFLATION
+    death_rates = inflate_oldest_death_rates(death_rates)
     add_infection_flows(
         epi_model,
         disease_state,

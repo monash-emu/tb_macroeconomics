@@ -6,7 +6,7 @@ from jax import numpy as jnp
 from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow, EntryFlow
 from summer3.graph import defer, Time
 
-from tb_macro.constants import AGE_STRATA
+from tb_macro.constants import AGE_STRATA, TOP_AGE_BRACKET_INFLATION
 
 
 def make_single_interp_func(
@@ -14,7 +14,17 @@ def make_single_interp_func(
     rates: jnp.ndarray,
     start_time: float,
 ) -> callable:
-    """Create a single-series interpolation function."""
+    """Create a single-series interpolation function over calendar time.
+
+    Args:
+        times: Calendar times of the data
+        rates: Values corresponding to the times
+        start_time: Model start time as a calendar year
+
+    Returns:
+        Function of model time that interpolates the series,
+            holding the first and last values outside the data range
+    """
 
     def interp(t):
         sim_time = t + start_time
@@ -34,7 +44,17 @@ def make_multi_interp_array_func(
     rates: jnp.ndarray,
     start_time: float,
 ) -> callable:
+    """Create a function that interpolates several age-specific series.
 
+    Args:
+        times: Calendar times of the data
+        rates: Values at those times, with one column per age group
+        start_time: Model start time as a calendar year
+
+    Returns:
+        Function of model time that returns a vector of
+            interpolated values for each age group
+    """
     age_funcs = [
         make_single_interp_func(times, rates[:, i], start_time)
         for i in range(rates.shape[1])
@@ -55,7 +75,7 @@ def make_multi_interp_func(
 
     Args:
         times: Time values to use for interpolation
-        rates: Rate values to interpolate, repated for each age group
+        rates: Rate values to interpolate, repeated for each age group
         start_time: Model start time
         age_strat: The age stratification object
 
@@ -82,6 +102,18 @@ def add_replacement_deaths(
         age_strat: The age stratification object
         death_rates: The per capita death rates
         start_time: Model start time
+
+    Notes:
+    -----
+    Background (non-TB-related) mortality is applied as 
+    an age-specific per capita rate, 
+    interpolated over calendar time from the
+    death rates provided.
+
+    Each death is immediately replaced by a birth into the
+    _Mtb_-naive youngest age group. This keeps background
+    mortality from affecting the population size,
+    while returning newborns without prior infection.
     """
     death_times = np.array(death_rates.index)
     dest = (disease_state["mtb_naive"], age_strat["0"])
@@ -100,12 +132,20 @@ def add_ageing_flows(
     age_strat: Stratification,
 ):
     """Add ageing transition flows between age strata in the epidemiological model.
-    Creates and adds TransitionFlow objects to the model that represent
-    the progression of the population through sequential age groups.
 
     Args:
         epi_model: The epidemiological model to add the flows to
         age_strat: The age stratification object
+
+    Notes:
+    -----
+    The population is stratified into the age groups with lower bounds being
+    {{AGE_STRATA}} years. People move from each group to the next at a
+    constant rate equal to the reciprocal of the group width, such that
+    the mean time spent in an age group matches its width in years.
+
+    The oldest group has no ageing outflow. Exit from this group
+    occurs only through death.
     """
     for a in range(len(AGE_STRATA) - 1):
         lower = AGE_STRATA[a]
@@ -118,6 +158,34 @@ def add_ageing_flows(
         epi_model.add_flow(ageing)
 
 
+def inflate_oldest_death_rates(death_rates: pd.DataFrame) -> pd.DataFrame:
+    """Inflate mortality in the open-ended oldest age group.
+
+    Args:
+        death_rates: Age-specific per capita death rates
+
+    Returns:
+        A copy of the death rates with the oldest group inflated
+
+    Notes:
+    -----
+    The death rate in the oldest age group is multiplied by
+    {{TOP_AGE_BRACKET_INFLATION}}. In reality the hazard of death
+    rises with age, so the population in this open-ended group is
+    concentrated at its younger end, with only a thin tail at the
+    oldest ages. The rate taken from the data is the average
+    hazard weighted by that distribution.
+
+    The model applies a single constant hazard to the whole group,
+    which implies exponential attrition and a heavier old-age tail.
+    Without inflation, too many people remain in this group relative
+    to the reported age distribution.
+    """
+    death_rates = death_rates.copy()
+    death_rates[AGE_STRATA[-1]] *= TOP_AGE_BRACKET_INFLATION
+    return death_rates
+
+
 def prepare_pop_data_for_entries(
     group_popsize: pd.DataFrame,
     start_time: float,
@@ -127,12 +195,18 @@ def prepare_pop_data_for_entries(
     for use by the model for new entries.
 
     Args:
-        pop_data: The population data
+        group_popsize: Population by year and age group
         start_time: Model start time
         start_pop: Model starting population
 
     Returns:
         The times and entry rates
+
+    Notes:
+    -----
+    Entry rates are calculated as the year-to-year increments 
+    in total population, after inserting the model's 
+    starting population at the start of the simulation.
     """
     total_pop_size = group_popsize.sum(axis=1)
     # non_dec_data = total_pop_size.cummax()
@@ -151,8 +225,7 @@ def get_birth_rate_func(
     rates: jnp.array,
     times: jnp.array,
 ) -> callable:
-    """Get the birth rate function for use by the
-    model in
+    """Get the birth rate function for use by the model.
 
     Args:
         start_time: Model start time
@@ -160,7 +233,7 @@ def get_birth_rate_func(
         times: Corresponding times for entry rates
 
     Returns:
-        The birth rate function
+        Function of model time that returns the current entry rate
     """
 
     def birth_rate_func(model_time):
@@ -190,6 +263,19 @@ def add_entry_births(
         start_time: Model start time
         rates: Birth entry rates
         times: Corresponding times for entry rates
+
+    Notes:
+    -----
+    Additional births enter the _Mtb_-naive youngest age group.
+    The supplied entry rates are applied as a step function in
+    calendar time.
+
+    Together with replacement of background deaths, this
+    produces a population that tracks the external totals while
+    remaining fully naive at birth.
+    Note that this entry rate may reach negative values,
+    but these negative entries are then more than compensated for by 
+    the death replacements as births.
     """
     birth_func = get_birth_rate_func(start_time, rates, times)
     dest = (disease_state["mtb_naive"], age_strat["0"])
