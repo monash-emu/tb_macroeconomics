@@ -44,6 +44,7 @@ def get_base_model(
     end_time: float,
 ) -> ModelSpec:
     """Build and return the base model along with the stratifications.
+
     Args:
         start_time: Run start time
         end_time: Run end time
@@ -52,6 +53,17 @@ def get_base_model(
         The model, the compartmental states, the age states,
             the clinical states of the active compartment and
             the infectiousness states of the active compartment
+
+    Notes:
+    -----
+    All people within the simulation are assigned to one of the 
+    following TB-related states: {{ALL_COMPARTMENTS}}.
+    These are stratified by age with lower bounds: {{AGE_STRATA}}
+    years. Active TB is further stratified by infectiousness
+    ({{INF_STRATA}}) and by clinical status (subclinical or
+    clinical).
+
+    The model is solved at steps of {{OUTPUT_TIME_STEP}} years.
     """
     disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
     humans = CompartmentMap.new(disease_state)
@@ -89,15 +101,22 @@ def add_natural_history(
 
     Notes:
     -----
-    After infection is contained, clearance occurs and endogenous
-    reactivation (breakdown).
+    After infection is contained, people may clear infection
+    or undergo endogenous reactivation (breakdown), at the
+    "{{clearance_rate}}" and "{{breakdown_rate}}" respectively.
 
-    Among people with active TB, infectiousness and symptoms can each
-    increase or decrease according to 
-    the "{{infectiousness_gain_rate}}" parameter.
+    Among people with active TB, infectiousness may increase or
+    decrease at the "{{infectiousness_gain_rate}}" and
+    "{{infectiousness_loss_rate}}". Symptoms may develop or
+    resolve at the "{{clinical_progression_rate}}" and
+    "{{clinical_regression_rate}}".
 
-    Subclinical disease may self-resolve.
-    Untreated clinical TB causes death.
+    Subclinical disease may self-resolve at the
+    "{{self_recovery_rate}}". Untreated clinical TB causes death
+    at the "{{tb_mortality_rate_lowinf}}" or
+    "{{tb_mortality_rate_inf}}", according to infectiousness.
+    These deaths are replaced by _Mtb_-naive births into the
+    youngest age group.
     """
     source = disease_state["contained"]
     dest = disease_state["cleared"]
@@ -188,6 +207,19 @@ def infect_process(
 
     Returns:
         CategoryData containing the age-stratified force of infection.
+
+    Notes:
+    -----
+    The force of infection is age-specific. Age groups whose
+    lower bound is below the young-age cutoff do not contribute
+    to transmission, and have susceptibility reduced by the
+    "{{rel_sus_children}}".
+
+    Each infectious person is weighted by the
+    "{{rel_infectiousness_lowinf}}" if in the low infectiousness
+    stratum, and by the "{{rel_infectiousness_subclin}}" if
+    subclinical. The resulting age-specific infectious pressure
+    is applied through the mixing matrix.
     """
     infectee_cats = age_cats
     infect_pop_cats = age_cats.product(infectious_compartments)
@@ -237,6 +269,22 @@ def add_infection_flows(
         fert_padded: The fertility data for the mixing matrix
         young_end_age: The maximum age to receive reduced susceptibility
         start_time: Run start time
+
+    Notes:
+    -----
+    Infection moves people from each of the susceptible states
+    {{INFECT_COMPS}} into incipient infection.
+
+    The force of infection is scaled by the
+    "{{raw_transmission_rate}}" and by a relative susceptibility
+    that depends on the source state: "{{rel_sus_mtb_naive}}"
+    for the never-infected, "{{rel_sus_contained}}" for
+    contained infection, and "{{rel_sus_cleared}}" for both
+    cleared and recovered infection.
+
+    A time-varying mixing matrix is built from the
+    "{{bg_mixing}}", "{{a_spread}}" and "{{pc_strength}}"
+    parameters.
     """
 
     dynamic_mm = defer(get_norm_c_matrix)(
@@ -292,8 +340,10 @@ def add_seeding(
 
     Notes:
     -----
-    Infection is seeded from the Mtb-naive compartment into incipient
-    infection with a triangular pulse.
+    Infection is seeded from the _Mtb_-naive compartment into
+    incipient infection with a triangular pulse. The pulse peaks
+    at the "{{seed_peak_time}}" at a rate of "{{seed_peak_rate}}",
+    with width "{{seed_duration}}".
     """
     peak_time = Parameter("seed_peak_time", 0.0)
     peak_height = Parameter("seed_peak_rate", 0.0)
@@ -317,6 +367,12 @@ def get_latency_age_adj(
 
     Returns:
         The age latency adjustment function
+
+    Notes:
+    -----
+    Containment and progression rates are grouped into three
+    latency bands: under 5 years, 5 to under 15 years, and
+    15 years and over.
     """
     idx_0 = [a for a in age_strat.strata if int(a) < 5]
     idx_5 = [a for a in age_strat.strata if 5 <= int(a) < 15]
@@ -346,6 +402,21 @@ def add_latency_flows(
         age_strat: The age stratification object
         clin_strat: The clinical stratification object
         infect_strat: The infectiousness stratification object
+
+    Notes:
+    -----
+    From incipient infection, people may contain infection or
+    progress to active disease. Both rates vary by the latency
+    age bands, using the "{{containment_rate_age0}}",
+    "{{containment_rate_age5}}" and "{{containment_rate_age15}}"
+    for containment, and the "{{progression_rate_age0}}",
+    "{{progression_rate_age5}}" and "{{progression_rate_age15}}"
+    for progression.
+
+    Progression is to subclinical disease. A fraction given by
+    the "{{progression_prop_infectious}}" enter the high
+    infectiousness stratum, and the remainder enter the low
+    infectiousness stratum.
     """
     latency_age_adj = get_latency_age_adj(age_strat)
 
@@ -457,6 +528,13 @@ def initialise_pops(
         disease_state: The disease state compartments
         age_strat: The age stratification object
         start_apops: The population distribution by age
+
+    Notes:
+    -----
+    The simulation begins with the entire population in the
+    _Mtb_-naive compartment, distributed across the age groups
+    with lower bounds {{AGE_STRATA}} according to the supplied
+    starting age distribution.
     """
     init_apops_series = pd.Series(
         index=[str(a) for a in AGE_STRATA], data=np.array(start_apops)
