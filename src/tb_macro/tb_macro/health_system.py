@@ -26,6 +26,19 @@ def add_detection(
         disease_state: The compartmental stratification object
         clin_strat: The clinical stratification object
         start_time: The model starting time as a calendar year
+
+    Notes:
+    -----
+    Routine detection moves people with clinical active TB into
+    treatment. Subclinical disease is not detected by this
+    process.
+
+    The rate of detection remains zero until 1957 
+    and then follows a cosine-smoothed
+    scale-up through 1986 and 2010 to the "{{detect_rate_current}}"
+    in 2020. The 2010 rate is the current rate multiplied by the
+    "{{rel_detect_2010}}", and the 1986 rate is that 2010 rate
+    multiplied by the "{{rel_detect_1986}}".
     """
     detect_rate_2020 = Parameter("detect_rate_current", 0.0)
     detect_rate_2010 = detect_rate_2020 * Parameter("rel_detect_2010", 0.0)
@@ -57,7 +70,7 @@ def compute_outcome_props(
     tsr: float,
     death_rate: np.array,
 ) -> dict[str, np.array]:
-    """Get the numeric values for all the treatment outcomes.
+    r"""Get the numeric values for all the treatment outcomes.
 
     Args:
         rx_duration: Treatment duration in model time units (years)
@@ -67,6 +80,24 @@ def compute_outcome_props(
 
     Returns:
         Treatment outcome proportions for each of the three outcomes
+
+    Notes:
+    -----
+    The probability of background death during a course of
+    treatment is $1 - \exp(-\delta \mu)$, where $\delta$ is the
+    "{{rx_duration}}" and $\mu$ is the age-specific background
+    mortality rate.
+
+    The remaining outcomes are split using the treatment success
+    rate and the proportion of unsuccessful outcomes that are
+    deaths. Background deaths already counted are subtracted from
+    that death target, so that only the additional deaths 
+    during treatment in excess of background mortality
+    are attributed to the TB-related mortality transition.
+    Whatever is left of the unsuccessful fraction 
+    after these deaths is considered as relapse.
+    Success is calculated as the complement of 
+    treatment-related death and relapse.
     """
     prop_nat_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rate)
     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
@@ -84,17 +115,22 @@ def get_outcome_rates(
     death_rate: np.array,
     age_strat,
 ) -> np.array:
-    """Get the flow rate for a specific treatment outcome.
+    """Get the flow rates for the treatment outcomes.
 
     Args:
-        outcome: The outcome identifier (success, relapse or rx_death)
         dur: Treatment duration in model time units (years)
         prop_neg_rx_death: Proportion of unsuccessful treatment outcomes resulting in death
         tsr: Treatment success rate
         death_rate: Natural death rate
+        age_strat: The age stratification object
 
     Returns:
-        The flow rate for the outcome requested
+        Flow rates for success, relapse and death during treatment
+
+    Notes:
+    -----
+    Each treatment outcome proportion is converted to a
+    competing hazard by dividing by the treatment duration.
     """
     outcome_props = compute_outcome_props(dur, prop_neg_rx_death, tsr, death_rate)
     return {
@@ -124,6 +160,22 @@ def add_treatment_flows(
         age_strat: The age stratification object
         infect_strat: The infectiousness stratification
         clin_strat: The clinical stratification
+        tsr_data: Treatment success rate by calendar time
+        death_in_unsucc_data: Proportion of unsuccessful outcomes that are deaths,
+            by calendar time
+
+    Notes:
+    -----
+    People on treatment leave to one of three outcomes, with
+    rates obtained from the treatment success rate, the
+    proportion of unsuccessful outcomes that are deaths, and
+    background mortality, all interpolated over calendar time.
+    The "{{rx_duration}}" sets the time scale of these rates.
+
+    Success returns people to the recovered compartment.
+    Relapse returns them to subclinical, low-infectious active TB.
+    Each death during treatment is replaced by an _Mtb_-naive birth 
+    into the youngest age group.
     """
 
     # TSR calculations

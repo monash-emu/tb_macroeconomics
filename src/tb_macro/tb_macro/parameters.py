@@ -91,6 +91,10 @@ PARAM_NAMES = {
     "progression_rate_age5": "progression rate ages 5 to 15",
     "progression_rate_age15": "progression rate ages 15 and over",
     "progression_prop_infectious": "proportion of progressions that are high-infectious",
+    "detect_rate_current": "current detection rate",
+    "rel_detect_2010": "relative detection rate in 2010 compared to current",
+    "rel_detect_1986": "relative detection rate in 1986 compared to 2010",
+    "rx_duration": "treatment duration",
 }
 
 _unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
