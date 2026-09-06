@@ -100,3 +100,6 @@ PARAM_NAMES = {
 _unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
 if _unknown_name:
     raise ValueError(f"PARAM_NAMES keys absent from BASE_PARAMS: {_unknown_name}")
+_unnamed = set(BASE_PARAMS) - set(PARAM_NAMES)
+if _unnamed:
+    raise ValueError(f"BASE_PARAMS keys missing from PARAM_NAMES: {_unnamed}")

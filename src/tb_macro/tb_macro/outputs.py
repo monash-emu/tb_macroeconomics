@@ -68,15 +68,40 @@ def get_share_folder_file_path(
 
 # Functions for extracting outputs from results with common signatures
 def get_age_inc(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Incidence of active TB by modelled age group.
+
+    Notes:
+    -----
+    Incidence is the progression flow from incipient infection
+    to active disease, summed within each modelled age group.
+    """
     return results["flows"]["progression"].sumcats(source=age_strat.categories())
 
 
 def get_age_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Prevalence of active TB and treatment by modelled age group.
+
+    Notes:
+    -----
+    Prevalence is calculated as the population in the compartments:
+    {{PREV_STATES}}. These are summed within each modelled age group.
+    """
     states = results["compartments"].query(compartment=disease_state[PREV_STATES])
     return states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_pulm_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Bacteriologically defined pulmonary prevalence by modelled age group.
+
+    Notes:
+    -----
+    The numerator comprises all active disease in the high infectiousness
+    stratum, a fraction of the low infectiousness stratum given by
+    "{{prop_lowinf_bactpos}}", and everyone currently receiving
+    treatment. Clinical status does not enter this calculation.
+    Unlike the calibration target, all modelled age groups are
+    included.
+    """
     high_inf = results["compartments"].query(
         compartment=infect_strat["high"]
     ).sumcats(compartment=age_strat.categories())
@@ -90,30 +115,76 @@ def get_age_pulm_prev(results, age_strat, disease_state, clin_strat, infect_stra
 
 
 def get_age_clin_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Prevalence of clinical active TB by modelled age group.
+
+    Notes:
+    -----
+    Clinical prevalence is the population in the clinical
+    stratum of active TB (both high- and low-infectiousness), 
+    summed within each modelled age group.
+    """
     states = results["compartments"].query(compartment=clin_strat["clin"])
     return states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_rx_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Prevalence of people on TB treatment by modelled age group.
+
+    Notes:
+    -----
+    This is the population in the treatment compartment, summed
+    within each modelled age group.
+    """
     states = results["compartments"].query(compartment=disease_state["treatment"])
     return states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_recovered_prev(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Prevalence of recovered TB by modelled age group.
+
+    Notes:
+    -----
+    This is the population in the recovered compartment, summed
+    within each modelled age group.
+    """
     states = results["compartments"].query(compartment=disease_state["recovered"])
     return states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_latent(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Ever-infected population by modelled age group.
+
+    Notes:
+    -----
+    Latent (ever-infected) prevalence comprises everyone not in the
+    _Mtb_-naive compartment, that is: {{INFECTED_STATES}}.
+    These are summed within each modelled age group.
+    """
     infected_states = results["compartments"].query(compartment=disease_state[INFECTED_STATES])
     return infected_states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_notifs(results, age_strat, disease_state, clin_strat, infect_strat):
-    return results["flows"]["detection"].sumcats(source=age_strat.categories())
+    """Case detections by modelled age group.
+
+    Notes:
+    -----
+    Notifications are routine detection plus active case finding,
+    summed within each modelled age group.
+    """
+    routine = results["flows"]["detection"].sumcats(source=age_strat.categories())
+    acf = results["flows"]["acf"].sumcats(source=age_strat.categories())
+    return routine + acf
 
 
 def get_age_deaths(results, age_strat, disease_state, clin_strat, infect_strat):
+    """TB deaths by modelled age group.
+
+    Notes:
+    -----
+    Deaths in the community and during treatment are summed
+    within each modelled age group.
+    """
     community_death_age = results["flows"]["tb_mortality"].sumcats(
         source=age_strat.categories()
     )
@@ -255,6 +326,12 @@ def build_age_mapping(
 
     Returns:
         The mapping object
+
+    Notes:
+    -----
+    Each modelled age group is split across output age groups
+    according to the share of its population that overlaps each
+    output group, using single-year population counts.
     """
     pops = pops.copy()
 
@@ -324,9 +401,17 @@ def map_and_regroup_output(
 
     Args:
         output: The output data
+        single_age_pops: Population by calendar year and single year of age
+        out_groups: Lower bounds of the requested output age groups
 
     Returns:
         The restructured data
+
+    Notes:
+    -----
+    Age-stratified outputs are reallocated from modelled age
+    groups to requested output age groups using the population
+    overlap fractions.
     """
 
     # Add columns for the modelled and output age groups corresponding to each single year age
@@ -356,6 +441,12 @@ def regroup_full_outputs(
 
     Returns:
         The regrouped outputs
+
+    Notes:
+    -----
+    Age-stratified outputs are regrouped to the requested age
+    bands. Outputs without age structure are left unchanged
+    aside from aligning their times to the population data.
     """
 
     # Create empty data structure

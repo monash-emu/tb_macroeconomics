@@ -293,7 +293,12 @@ def plot_single_run_comparison(results, disease_state, who_mort, start, end):
     # Notifications
     notif_ax = axes[0, 0]
     notifs_modelled = (
-        results["flows"]["detection"].sum(to_dims="time").to_pandas_df().loc[start:end]
+        (
+            results["flows"]["detection"].sum(to_dims="time")
+            + results["flows"]["acf"].sum(to_dims="time")
+        )
+        .to_pandas_df()
+        .loc[start:end]
     )
     notifs_modelled.plot(ax=notif_ax, label="modelled")
     NOTIF_TARGET.plot(ax=notif_ax, linewidth=0.0, marker="o", label="target")
