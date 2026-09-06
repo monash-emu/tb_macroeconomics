@@ -31,21 +31,7 @@ def build_s_matrix_single_age(
     a_spread: float,
     pc_strength: float,
 ) -> jnp.array:
-
-    """Construct the full single-age transmission kernel matrix.
-
-    This function builds an unweighted contact kernel at single-year age resolution,
-    representing the per-pair intensity of interaction between individuals of
-    each pair of ages.
-
-    The kernel combines three components:
-    - Background (uniform) mixing
-    - Assortative mixing based on age similarity
-    - Parent-child mixing based on fertility-derived age gaps
-
-    Importantly, this matrix does *not* include any information about the population
-    distribution. Weighting by age structure is applied later when aggregating to
-    age groups.
+    r"""Construct the full single-age transmission kernel matrix.
 
     Args:
         fert: The fertility data (padded with zeroes)
@@ -57,6 +43,23 @@ def build_s_matrix_single_age(
 
     Returns:
         (MAX_AGE + 1) x (MAX_AGE + 1) unweighted transmission kernel
+
+    Notes:
+    -----
+    The single-age mixing kernel is the sum of three components
+    and does not depend on population size. It covers single years
+    of age from 0 to {{MAX_AGE}}.
+
+    Background mixing is a constant "{{bg_mixing}}" added to
+    every age pair.
+
+    Assortative mixing decays exponentially with the difference
+    in age, as $(1/a)\exp(-|i-j|/a)$, where $a$ is the
+    "{{a_spread}}".
+
+    Parent-child mixing is the "{{pc_strength}}" multiplied by
+    fertility at the younger person's year of birth, indexed by
+    the age gap (the implied age of the parent at that birth).
     """
     ages = jnp.arange(MAX_AGE + 1)
 
@@ -95,6 +98,13 @@ def get_full_normalised_within_age_band_weights(
 
     Returns:
         The weight matrix
+
+    Notes:
+    -----
+    Each model age group with lower bounds {{AGE_STRATA}} is
+    represented as a distribution over single years of age,
+    using the supplied within-group weights, with the last
+    group running to {{MAX_AGE}}.
     """
     w_group = jnp.zeros((len(AGE_STRATA), MAX_AGE + 1))
     for a, lower in enumerate(AGE_STRATA):
@@ -128,6 +138,14 @@ def aggregate_full_matrix_to_groups(
 
     Returns:
         len(AGE_STRATA) x len(AGE_STRATA) weighted group transmission matrix
+
+    Notes:
+    -----
+    The group-level kernel is obtained by projecting the
+    single-age kernel through these within-group age
+    distributions. Each entry is the expected mixing intensity
+    between a random person from one age group and a random
+    person from another.
     """
     w_group = get_full_normalised_within_age_band_weights(current_weights)
     return w_group @ full_kernel @ w_group.T
@@ -165,6 +183,13 @@ def build_s_matrix(
 
     Returns:
         The s_matrix matrix (n_groups x n_groups)
+
+    Notes:
+    -----
+    Within-group age weights at the current year are used to
+    aggregate the single-age kernel to the modelled age groups.
+    The resulting matrix is a per pair of individuals intensity and 
+    so does not yet incorporate population size.
     """
     year_idx = get_year_index(weight_ends, time)
     current_weights = weights[year_idx, :]
@@ -212,6 +237,12 @@ def build_c_matrix(
 
     Returns:
         The C matrix
+
+    Notes:
+    -----
+    Each column of the group-level kernel is multiplied by the
+    population of that (infecting) age group, converting per pair of individuals
+    intensities into population-scaled contact rates.
     """
     year_idx = get_year_index(pop_ends, time)
     pops = pops[year_idx, :]
@@ -254,6 +285,14 @@ def get_norm_c_matrix(
 
     Returns:
         The normalised C matrix
+
+    Notes:
+    -----
+    The population-scaled contact matrix is divided by its
+    spectral radius, such that the dominant eigenvalue is one.
+    This allows the intensity of transmission to be controlled through
+    other parameters, such that the mixing matrix construction controls
+    only the relative intensity of transmission between age groups.
     """
     c_matrix = build_c_matrix(
         weights,
