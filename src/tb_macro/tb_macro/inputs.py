@@ -40,8 +40,9 @@ def get_single_age_pop_from_ungroups(
 
     Notes:
     -----
-    UN age-group counts are recorded in thousands and are distributed 
-    uniformly across the single years of age contained by each group 
+    UN age-group counts are recorded in thousands and are 
+    distributed uniformly across the single years of age 
+    contained by each group before further processing 
     (with open-ended groups extended to {{MAX_AGE}} years).
     """
     single_rows = []

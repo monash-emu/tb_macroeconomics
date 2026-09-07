@@ -139,12 +139,12 @@ def add_ageing_flows(
 
     Notes:
     -----
-    The population is stratified into the age groups with lower bounds being
+    The population is stratified into age groups with lower bounds of: 
     {{AGE_STRATA}} years. People move from each group to the next at a
-    constant rate equal to the reciprocal of the group width, such that
-    the mean time spent in an age group matches its width in years.
-    The oldest group has no ageing outflow. Exit from this group
-    occurs only through death.
+    constant rate equal to the reciprocal of the with of the group 
+    they are exiting in years, such that the mean time spent in 
+    each age group matches its width. The oldest group has 
+    no ageing outflow. Exit from this group occurs only through death.
     """
     for a in range(len(AGE_STRATA) - 1):
         lower = AGE_STRATA[a]
