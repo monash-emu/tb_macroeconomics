@@ -20,7 +20,7 @@ def get_country_pop(
     Notes:
     -----
     Population counts are taken from the UN World Population
-    Prospects, by calendar year and age group, for {{ISO3}}.
+    Prospects, by calendar year and age group, for country: {{ISO3}}.
     """
     data = pd.read_csv(DATA_PATH / "population/un_population_20260506T0211Z.csv")
     return data[data["ISO3_code"] == iso3][["Time", "AgeGrp", "PopTotal"]]
@@ -40,9 +40,9 @@ def get_single_age_pop_from_ungroups(
 
     Notes:
     -----
-    UN age-group counts are recorded in thousands and are spread
-    uniformly across the single years of age in each group.
-    Open-ended groups are extended to {{MAX_AGE}} years.
+    UN age-group counts are recorded in thousands and are distributed 
+    uniformly across the single years of age contained by each group 
+    (with open-ended groups extended to {{MAX_AGE}} years).
     """
     single_rows = []
     for _, r in data.iterrows():
@@ -71,7 +71,7 @@ def add_groups_to_single_pop(
 
     Notes:
     -----
-    Single years of age are assigned to the model age groups with
+    Individual integer years of age are assigned to the model age groups with
     lower bounds {{AGE_STRATA}}. The last group is open-ended up
     to {{MAX_AGE}}.
     """

@@ -143,7 +143,6 @@ def add_ageing_flows(
     {{AGE_STRATA}} years. People move from each group to the next at a
     constant rate equal to the reciprocal of the group width, such that
     the mean time spent in an age group matches its width in years.
-
     The oldest group has no ageing outflow. Exit from this group
     occurs only through death.
     """
