@@ -2,13 +2,29 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from jax import numpy as jnp
 
 from summer3.epi import Stratification, ManagedArray
 
-from tb_macro.constants import AGE_STRATA, INFECTED_STATES
+from tb_macro.constants import (
+    AGE_STRATA,
+    INFECTED_STATES,
+    ISO3,
+    MIXING_TARGET_YEAR,
+    YOUNG_END_AGE,
+)
+from tb_macro.inputs import get_norm_conmat
+from tb_macro.mixing import canberra_distance
 from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
-from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
-from tb_macro.utils import annual_to_midyear
+from tb_macro.parameters import BASE_PARAMS
+from tb_macro.targets import (
+    INF_PREV_TARGET,
+    LATENT_TARGET,
+    NOTIF_TARGET,
+    PREV_DECLINE_TARGET,
+    PULM_PREV_TARGET,
+)
+from tb_macro.utils import annual_to_midyear, interp_annual_to_times
 
 pd.options.plotting.backend = "matplotlib"
 
@@ -48,7 +64,7 @@ def plot_comp_distributions(
     modelled_pop = total_pop.squeeze()
     modelled_pop = modelled_pop.where(np.isfinite(modelled_pop))
     total_pop_target.plot(ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=2.0, label="target")
-    modelled_pop.plot(ax=axes[0, 0], title="total population versus target data", label="modelled")
+    modelled_pop.plot.area(ax=axes[0, 0], title="total population versus target data", label="modelled")
     dstate_props.clip(lower=0).plot.area(ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0])
     age_vals.clip(lower=0).plot.area(ax=axes[0, 1], title="age group sizes")
     age_props.clip(lower=0).plot.area(ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0])
@@ -291,56 +307,230 @@ def plot_age_population_comparison(results, target_pop, age_strat, years):
     return fig
 
 
-def plot_single_run_comparison(results, disease_state, who_mort, start, end):
-    fig, axes = plt.subplots(2, 2, figsize=(10, 8), sharex=True)
+def _managed_to_annual(managed) -> pd.Series:
+    """Collapse a managed output onto an annual float-indexed series."""
+    series = managed.sum(to_dims="time").to_pandas_df().squeeze()
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+    series = series.astype(float)
+    series.index = series.index.astype(float)
+    return series
 
-    # Notifications
-    notif_ax = axes[0, 0]
-    notifs_modelled = annual_to_midyear(
-        (
-            results["flows"]["detection"].sum(to_dims="time")
-            + results["flows"]["acf"].sum(to_dims="time")
-        ).to_pandas_df()
-    ).loc[start:end]
-    notifs_modelled.plot(ax=notif_ax, label="modelled")
-    NOTIF_TARGET.plot(ax=notif_ax, linewidth=0.0, marker="o", label="target")
-    notif_ax.set_ylim(bottom=0.0)
-    notif_ax.legend()
-    notif_ax.set_title("notifications")
 
-    # Latent
-    latent_ax = axes[0, 1]
-    total_pop = annual_to_midyear(
-        results["compartments"].sum(to_dims="time").to_pandas_df()
-    ).loc[start:end]
-    infected_states = results["compartments"].query(
-        compartment=disease_state[INFECTED_STATES]
+def _midyear_window(series: pd.Series, start: float, end: float) -> pd.Series:
+    return annual_to_midyear(series).loc[start:end]
+
+
+def _geom_mean_ratio(modelled, target) -> float:
+    modelled = np.maximum(np.asarray(modelled, dtype=float), 1e-32)
+    target = np.maximum(np.asarray(target, dtype=float), 1e-32)
+    return float(np.exp(np.mean(np.log(modelled / target))))
+
+
+def _adult_pulm_prev_series(results, disease_state, age_strat, infect_strat):
+    """Adult pulmonary prevalence quantities on the annual solver grid.
+
+    Matches the calibration definition: high-infectious adults, a fraction of
+    low-infectious adults, and adults on treatment, over the adult population.
+    """
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
+    high_inf = _managed_to_annual(
+        results["compartments"].query(compartment=(infect_strat["high"], adult_ages))
     )
-    latent_ax.set_ylim(bottom=0.0, top=100.0)
-    latent_modelled = annual_to_midyear(
-        infected_states.sum(to_dims="time").to_pandas_df()
-    ).loc[start:end] / total_pop * 100.0
-    latent_modelled.plot(ax=latent_ax, label="modelled")
-    LATENT_TARGET.plot(ax=latent_ax, linewidth=0.0, marker="o", label="target")
-    latent_ax.legend()
-    latent_ax.set_title("latent")
-
-    # Mortality
-    mort_ax = axes[1, 0]
-    community_death_age = annual_to_midyear(
-        results["flows"]["tb_mortality"].sum(to_dims="time").to_pandas_df()
+    low_inf = _managed_to_annual(
+        results["compartments"].query(compartment=(infect_strat["low"], adult_ages))
     )
-    rx_death_age = annual_to_midyear(
-        results["flows"]["rx_death"].sum(to_dims="time").to_pandas_df()
+    on_rx = _managed_to_annual(
+        results["compartments"].query(
+            compartment=(disease_state["treatment"], adult_ages)
+        )
     )
-    deaths = (community_death_age + rx_death_age).loc[start:end]
-    deaths.plot(ax=mort_ax)
-    who_mort.plot(ax=mort_ax, linewidth=0.0, marker="o", label="target")
-    mort_ax.set_title("mortality")
-    mort_ax.set_ylim(bottom=0.0)
+    adult_pop = _managed_to_annual(
+        results["compartments"].query(compartment=adult_ages)
+    )
+    pulm_prev = high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
+    return high_inf, pulm_prev, adult_pop
 
-    axes[1, 1].set_axis_off()
+
+def _plot_modelled_and_target(ax, modelled, target, title, start, end) -> None:
+    modelled.loc[start:end].plot(ax=ax, label="modelled")
+    target.plot(ax=ax, linewidth=0.0, marker="o", color="k", label="target", zorder=4)
+    ax.set_ylim(bottom=0.0)
+    ax.set_xlim(start, end)
+    ax.legend()
+    ax.set_title(title)
+
+
+def plot_single_run_comparison(
+    results,
+    disease_state,
+    age_strat,
+    infect_strat,
+    who_mort,
+    start,
+    end,
+):
+    """Compare a single run against the epidemiological calibration targets.
+
+    The time-series panels overlay modelled output on the quantities used in
+    the likelihood: notifications, TB deaths, latent infection, adult
+    pulmonary prevalence (with the survey decline implied by the 2017
+    target), and the highly infectious share of that prevalence. The final
+    panel summarises modelled / target at the likelihood comparison points.
+
+    Mixing is plotted separately by ``plot_mixing_target_comparison``.
+    """
+    notif = _managed_to_annual(results["flows"]["detection"])
+    deaths = _managed_to_annual(results["flows"]["tb_mortality"]) + _managed_to_annual(
+        results["flows"]["rx_death"]
+    )
+    total_pop = _managed_to_annual(results["compartments"])
+    latent = (
+        _managed_to_annual(
+            results["compartments"].query(compartment=disease_state[INFECTED_STATES])
+        )
+        / total_pop
+        * 100.0
+    )
+    high_inf, pulm_prev, adult_pop = _adult_pulm_prev_series(
+        results, disease_state, age_strat, infect_strat
+    )
+    pulm_prev_rate = pulm_prev / adult_pop * 1e5
+    inf_prop = high_inf / pulm_prev * 100.0
+
+    fig, axes = plt.subplots(3, 2, figsize=(12, 12))
+    _plot_modelled_and_target(
+        axes[0, 0],
+        _midyear_window(notif, start, end),
+        NOTIF_TARGET,
+        "notifications per year",
+        start,
+        end,
+    )
+    _plot_modelled_and_target(
+        axes[0, 1],
+        _midyear_window(deaths, start, end),
+        who_mort,
+        "TB deaths per year",
+        start,
+        end,
+    )
+    _plot_modelled_and_target(
+        axes[1, 0],
+        _midyear_window(latent, start, end),
+        LATENT_TARGET,
+        "percentage with latent infection",
+        start,
+        end,
+    )
+    axes[1, 0].set_ylim(0.0, 100.0)
+    pulm_ax = axes[1, 1]
+    _plot_modelled_and_target(
+        pulm_ax,
+        _midyear_window(pulm_prev_rate, start, end),
+        PULM_PREV_TARGET,
+        "adult pulmonary prevalence per 100,000",
+        start,
+        end,
+    )
+    add_pulm_prev_decline_arrow(pulm_ax, PULM_PREV_TARGET, PREV_DECLINE_TARGET)
+    pulm_ax.relim()
+    pulm_ax.autoscale_view(scalex=False, scaley=True)
+    pulm_ax.set_ylim(bottom=0.0)
+    _plot_modelled_and_target(
+        axes[2, 0],
+        _midyear_window(inf_prop, start, end),
+        INF_PREV_TARGET * 100.0,
+        "high-infectious share of adult pulmonary prevalence (%)",
+        start,
+        end,
+    )
+
+    decline_target = PREV_DECLINE_TARGET.sort_index()
+    modelled_decline = interp_annual_to_times(pulm_prev_rate, decline_target.index)
+    fit_ratios = pd.Series(
+        {
+            "notifications": _geom_mean_ratio(
+                interp_annual_to_times(notif, NOTIF_TARGET.index),
+                NOTIF_TARGET,
+            ),
+            "deaths": _geom_mean_ratio(
+                interp_annual_to_times(deaths, who_mort.index),
+                who_mort,
+            ),
+            "latent": _geom_mean_ratio(
+                interp_annual_to_times(latent, LATENT_TARGET.index),
+                LATENT_TARGET,
+            ),
+            "pulm. prevalence": _geom_mean_ratio(
+                interp_annual_to_times(pulm_prev_rate, PULM_PREV_TARGET.index),
+                PULM_PREV_TARGET,
+            ),
+            "high-infectious share": _geom_mean_ratio(
+                interp_annual_to_times(inf_prop, INF_PREV_TARGET.index),
+                INF_PREV_TARGET * 100.0,
+            ),
+            "prevalence decline": _geom_mean_ratio(
+                modelled_decline.iloc[1] / modelled_decline.iloc[0],
+                decline_target.iloc[1] / decline_target.iloc[0],
+            ),
+        }
+    )
+    fit_ax = axes[2, 1]
+    sns.barplot(
+        x=fit_ratios.values,
+        y=fit_ratios.index,
+        ax=fit_ax,
+        color="C0",
+        orient="h",
+    )
+    fit_ax.axvline(1.0, color="k", linewidth=1.0)
+    fit_ax.set_xlabel("modelled / target")
+    fit_ax.set_ylabel("")
+    fit_ax.set_title("fit at calibration targets")
 
     fig.tight_layout()
+    plt.close()
+    return fig
+
+
+def plot_mixing_target_comparison(
+    results,
+    year: float = MIXING_TARGET_YEAR,
+):
+    """Compare the modelled mixing matrix to the synthetic contact matrix.
+
+    Both matrices are spectral-radius normalised, as in the likelihood.
+    """
+    modelled = np.asarray(
+        results["computed_values"]["dynamic_mm"].to_xarray_da().sel(time=year)
+    )
+    target = np.asarray(get_norm_conmat(ISO3))
+    distance = float(canberra_distance(jnp.asarray(modelled), jnp.asarray(target)))
+    diff = modelled - target
+    vmax = max(float(np.max(modelled)), float(np.max(target)))
+    dmax = float(np.max(np.abs(diff)))
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), constrained_layout=True)
+    panels = (
+        (axes[0], modelled, "viridis", 0.0, vmax, f"modelled, {int(year)}"),
+        (axes[1], target, "viridis", 0.0, vmax, "synthetic contact matrix"),
+        (axes[2], diff, "coolwarm", -dmax, dmax, "modelled minus target"),
+    )
+    for ax, data, cmap, vmin, panel_vmax, title in panels:
+        sns.heatmap(
+            data,
+            cmap=cmap,
+            xticklabels=AGE_STRATA,
+            yticklabels=AGE_STRATA,
+            ax=ax,
+            vmin=vmin,
+            vmax=panel_vmax,
+            square=True,
+        )
+        ax.set_title(title)
+        ax.set_xlabel("age group")
+        ax.set_ylabel("age group")
+    fig.suptitle(f"mixing target comparison, Canberra distance {distance:.2f}")
     plt.close()
     return fig
