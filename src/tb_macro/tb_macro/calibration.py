@@ -12,6 +12,7 @@ from tb_macro.constants import (
     INFECTED_STATES,
     PROP_LOGIT_SD,
     YOUNG_END_AGE,
+    START_TIME,
 )
 from tb_macro.targets import (
     NOTIF_TARGET,
@@ -21,6 +22,7 @@ from tb_macro.targets import (
     PREV_DECLINE_TARGET,
 )
 from tb_macro.parameters import BASE_PARAMS
+from tb_macro.utils import lerp_annual_output
 
 _EPS = 1e-32
 
@@ -95,14 +97,21 @@ def get_latent_log_likelihood(results: dict, disease_state: Stratification):
     """
     target_time = LATENT_TARGET.index[0]
     target_val = LATENT_TARGET.iloc[0] / 1e2
-    latent = (
+    latent = lerp_annual_output(
         results["compartments"]
-        .query(compartment=disease_state[INFECTED_STATES], time=target_time)
+        .query(compartment=disease_state[INFECTED_STATES])
         .sum(to_dims="time")
+        .data,
+        target_time,
+        START_TIME,
     )
-    total = results["compartments"].query(time=target_time).sum(to_dims="time")
+    total = lerp_annual_output(
+        results["compartments"].sum(to_dims="time").data,
+        target_time,
+        START_TIME,
+    )
     latent_prop = latent / (total + _EPS)
-    return _logit_normal_log_prob(latent_prop.data[0], target_val)
+    return _logit_normal_log_prob(latent_prop, target_val)
 
 
 def get_notification_log_likelihood(results: dict):
@@ -119,9 +128,9 @@ def get_notification_log_likelihood(results: dict):
     Modelled case detections were compared against the notifications
     obtained from the Vietnam National Tuberculosis Program. These are
     reported by calendar year, and so are offset by
-    {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year in model time
-    (because we consider whole numbers of years in modelled time 
-    to represent the starts and ends of years).
+    {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year.
+    The model is solved at whole years, then linearly interpolated
+    to those mid-year points for comparison.
 
     As counts, notifications are compared on the log scale with a
     standard deviation of {{COUNT_LOG_SD}}, which relates the difference
@@ -130,11 +139,10 @@ def get_notification_log_likelihood(results: dict):
     that this multi-year series contributes comparable weight to the likelihood
     as the single-point targets.
     """
-    notif = (
-        results["flows"]["detection"]
-        .query(time=NOTIF_TARGET.index)
-        .sum(to_dims="time")
-        .data
+    notif = lerp_annual_output(
+        results["flows"]["detection"].sum(to_dims="time").data,
+        NOTIF_TARGET.index,
+        START_TIME,
     )
     return _log_normal_log_prob(notif, NOTIF_TARGET.to_numpy()).mean()
 
@@ -160,17 +168,15 @@ def get_death_log_likelihood(results: dict, who_mort: pd.Series):
     standard deviation of {{COUNT_LOG_SD}}, and averaged over the years for
     which estimates are available.
     """
-    community_deaths = (
-        results["flows"]["tb_mortality"]
-        .query(time=who_mort.index)
-        .sum(to_dims="time")
-        .data
+    community_deaths = lerp_annual_output(
+        results["flows"]["tb_mortality"].sum(to_dims="time").data,
+        who_mort.index,
+        START_TIME,
     )
-    rx_deaths = (
-        results["flows"]["rx_death"]
-        .query(time=who_mort.index)
-        .sum(to_dims="time")
-        .data
+    rx_deaths = lerp_annual_output(
+        results["flows"]["rx_death"].sum(to_dims="time").data,
+        who_mort.index,
+        START_TIME,
     )
     deaths = community_deaths + rx_deaths
     return _log_normal_log_prob(deaths, who_mort.to_numpy()).mean()
@@ -213,28 +219,37 @@ def get_adult_pulm_prev(
     The denominator is the total adult population at the same time point.
     """
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    high_inf = (
+    high_inf = lerp_annual_output(
         results["compartments"]
-        .query(compartment=(infect_strat["high"], adult_ages), time=target_time)
+        .query(compartment=(infect_strat["high"], adult_ages))
         .sum(to_dims="time")
+        .data,
+        target_time,
+        START_TIME,
     )
-    low_inf = (
+    low_inf = lerp_annual_output(
         results["compartments"]
-        .query(compartment=(infect_strat["low"], adult_ages), time=target_time)
+        .query(compartment=(infect_strat["low"], adult_ages))
         .sum(to_dims="time")
+        .data,
+        target_time,
+        START_TIME,
     )
-    on_rx = (
+    on_rx = lerp_annual_output(
         results["compartments"]
-        .query(
-            compartment=(disease_state["treatment"], adult_ages),
-            time=target_time,
-        )
+        .query(compartment=(disease_state["treatment"], adult_ages))
         .sum(to_dims="time")
+        .data,
+        target_time,
+        START_TIME,
     )
-    adult_pop = (
+    adult_pop = lerp_annual_output(
         results["compartments"]
-        .query(compartment=adult_ages, time=target_time)
+        .query(compartment=adult_ages)
         .sum(to_dims="time")
+        .data,
+        target_time,
+        START_TIME,
     )
     pulm_prev = high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
     return high_inf, pulm_prev, adult_pop
@@ -273,7 +288,7 @@ def get_pulm_prev_log_likelihood(
         results, disease_state, age_strat, infect_strat, target_time
     )
     prev_prop = pulm_prev / (adult_pop + _EPS)
-    return _logit_normal_log_prob(prev_prop.data[0], target_val)
+    return _logit_normal_log_prob(prev_prop, target_val)
 
 
 def get_prev_decline_log_likelihood(
@@ -319,7 +334,7 @@ def get_prev_decline_log_likelihood(
     prev_end = pulm_end / (pop_end + _EPS)
     prev_base = pulm_base / (pop_base + _EPS)
     predicted_decline = prev_end / (prev_base + _EPS)
-    return _log_normal_log_prob(predicted_decline.data[0], target_decline)
+    return _log_normal_log_prob(predicted_decline, target_decline)
 
 
 def get_infprop_log_likelihood(
@@ -360,7 +375,7 @@ def get_infprop_log_likelihood(
         results, disease_state, age_strat, infect_strat, target_time
     )
     inf_prop = high_inf / (pulm_prev + _EPS)
-    return _logit_normal_log_prob(inf_prop.data[0], target_val)
+    return _logit_normal_log_prob(inf_prop, target_val)
 
 
 def make_log_likelihood(

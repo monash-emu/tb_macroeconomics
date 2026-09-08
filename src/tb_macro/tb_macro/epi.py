@@ -28,6 +28,7 @@ from tb_macro.constants import (
     START_TIME,
     YOUNG_END_AGE,
     OUTPUT_TIME_STEP,
+    CALENDAR_YEAR_MIDPOINT,
 )
 from tb_macro.utils import get_triang_vals
 from tb_macro.mixing import get_norm_c_matrix
@@ -64,6 +65,8 @@ def get_base_model(
     clinical).
 
     The model is solved at steps of {{OUTPUT_TIME_STEP}} years.
+    Target comparisons interpolate those annual outputs to
+    mid-year ({{CALENDAR_YEAR_MIDPOINT}}).
     """
     disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
     humans = CompartmentMap.new(disease_state)
@@ -182,7 +185,6 @@ def infect_process(
     transmission_rate: float,
     age_breaks: jnp.array,
     young_end_age: int,
-    rel_sus_children: float,
     rel_infect_lowinf: float,
     rel_infect_subclin: float,
     mm_dynamic,
@@ -199,8 +201,7 @@ def infect_process(
         clinical_cats: Category group for clinical strata
         transmission_rate: Base contact rate multiplier
         age_breaks: Age values used to determine young-age stratification
-        young_end_age: Maximum age to receive reduced susceptibility
-        rel_sus_children: Susceptibility multiplier for younger ages
+        young_end_age: Maximum age that does not contribute to transmission
         rel_infect_lowinf: Relative infectiousness for low-infectious cases
         rel_infect_subclin: Relative infectiousness for subclinical cases
         mm_dynamic: Function that builds a mixing matrix at a given time
@@ -212,10 +213,7 @@ def infect_process(
     -----
     The force of infection is age-specific. Age groups whose
     lower bound is below the young-age cutoff do not contribute
-    to transmission, and have susceptibility reduced by the
-    "{{rel_sus_children}}".
-
-    Each infectious person is weighted by the
+    to transmission. Each infectious person is weighted by the
     "{{rel_infectiousness_lowinf}}" if in the low infectiousness
     stratum, and by the "{{rel_infectiousness_subclin}}" if
     subclinical. The resulting age-specific infectious pressure
@@ -225,7 +223,6 @@ def infect_process(
     infect_pop_cats = age_cats.product(infectious_compartments)
 
     age_infect = jnp.where(age_breaks < young_end_age, 0.0, 1.0)
-    age_suscept = jnp.where(age_breaks < young_end_age, rel_sus_children, 1.0)
 
     infectivity_modifier = infectivity_cats.wrap(jnp.array([rel_infect_lowinf, 1.0]))
     effective_values = mul_ma_catdata(compartment_values, infectivity_modifier, True)
@@ -237,7 +234,7 @@ def infect_process(
     total_pop = compartment_values.sumcats(age_cats).data
 
     inf_pressure = transmission_rate * age_infect * ipops / total_pop
-    age_foi = age_suscept * (mm_dynamic @ inf_pressure)
+    age_foi = mm_dynamic @ inf_pressure
     return CategoryData(infectee_cats, age_foi)
 
 
@@ -267,7 +264,8 @@ def add_infection_flows(
         age_weights: The age weights for the mixing matrix
         group_popsize: The population sizes for the mixing matrix
         fert_padded: The fertility data for the mixing matrix
-        young_end_age: The maximum age to receive reduced susceptibility
+        young_end_age: The age below which people do not transmit,
+            and never-infected children have reduced susceptibility
         start_time: Run start time
 
     Notes:
@@ -281,7 +279,12 @@ def add_infection_flows(
     for the never-infected, "{{rel_sus_contained}}" for
     contained infection, and "{{rel_sus_cleared}}" for both
     cleared and recovered infection.
-
+    Never-infected children have susceptibility further
+    reduced by the "{{rel_sus_children}}" parameter.
+    This modifier is not applied to reinfection from 
+    contained, cleared or recovered infection, 
+    because previous infection or disease is assumed to 
+    override any effect of BCG.
     A time-varying mixing matrix is built from the
     "{{bg_mixing}}", "{{a_spread}}" and "{{pc_strength}}"
     parameters.
@@ -299,6 +302,11 @@ def add_infection_flows(
         Parameter("a_spread", 0.0),
         Parameter("pc_strength", 0.0),
     ).set_name("dynamic_mm")
+
+    def child_sus_adj(rel_sus_children) -> CategoryData:
+        age_suscept = jnp.where(jnp.array(AGE_STRATA) < young_end_age, rel_sus_children, 1.0)
+        return age_strat.categories().wrap(age_suscept)
+
     for comp in INFECT_COMPS:
         suscept_comp = "cleared" if comp in ["cleared", "recovered"] else comp
         rel_sus = Parameter(f"rel_sus_{suscept_comp}", 0.0)
@@ -312,7 +320,6 @@ def add_infection_flows(
             scaled_contact_rate,
             jnp.array(AGE_STRATA),
             young_end_age,
-            Parameter("rel_sus_children", 0.0),
             Parameter("rel_infectiousness_lowinf", 0.0),
             Parameter("rel_infectiousness_subclin", 0.0),
             dynamic_mm,
@@ -323,6 +330,9 @@ def add_infection_flows(
             disease_state["incipient"],
             reinfect_foi,
         )
+        if comp == "mtb_naive":
+            adj = defer(child_sus_adj)(Parameter("rel_sus_children", 0.0))
+            reinfect.adjustments_source.append(adj)
         epi_model.add_flow(reinfect)
 
 

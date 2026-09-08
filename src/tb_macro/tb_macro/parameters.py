@@ -76,7 +76,7 @@ PARAM_NAMES = {
     "seed_peak_time": "seeding peak year",
     "seed_peak_rate": "seeding peak rate",
     "seed_duration": "seeding duration",
-    "rel_sus_children": "relative susceptibility of children",
+    "rel_sus_children": "relative susceptibility of never-infected children",
     "rel_sus_mtb_naive": "relative susceptibility of the never-infected",
     "rel_sus_contained": "relative susceptibility of contained infection",
     "rel_sus_cleared": "relative susceptibility of cleared or recovered infection",

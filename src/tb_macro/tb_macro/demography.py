@@ -237,7 +237,7 @@ def get_birth_rate_func(
 
     def birth_rate_func(model_time):
         time = model_time + start_time
-        idx = jnp.searchsorted(times, time)
+        idx = jnp.clip(jnp.searchsorted(times, time), 0, rates.shape[0] - 1)
         return rates[idx]
 
     return birth_rate_func

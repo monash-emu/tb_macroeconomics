@@ -181,7 +181,8 @@ def add_treatment_flows(
     # TSR calculations
     tsr_times = get_scale_data(np.array(tsr_data.index))
     tsr_vals = get_scale_data(np.array(tsr_data))
-    tsr_func = defer(lambda t: get_cos_multicurve(t, tsr_times, tsr_vals))(Time)
+    sim_time = Time + start_time
+    tsr_func = defer(lambda t: get_cos_multicurve(t, tsr_times, tsr_vals))(sim_time)
 
     # Death in unsuccessful outcomes calculations
     death_unsucc_times = get_scale_data(np.array(death_in_unsucc_data.index))
@@ -190,7 +191,7 @@ def add_treatment_flows(
     def death_unsucc_curve(t):
         return get_cos_multicurve(t, death_unsucc_times, death_unsucc_vals)
 
-    death_unsucc_func = defer(death_unsucc_curve)(Time)
+    death_unsucc_func = defer(death_unsucc_curve)(sim_time)
 
     # Natural death calculations
     death_times = np.array(

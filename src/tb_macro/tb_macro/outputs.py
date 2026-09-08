@@ -10,6 +10,7 @@ from summer3.epi import ManagedArray, Stratification, CompartmentalEpiModel
 
 from tb_macro.constants import PREV_STATES, INFECTED_STATES, AGE_STRATA, SOLVER_KWARGS
 from tb_macro.parameters import BASE_PARAMS
+from tb_macro.utils import annual_to_midyear
 
 
 def get_complete_strat_props(
@@ -511,8 +512,9 @@ def rerun_model_for_outputs(
         for s, s_params in enumerate(scen_params):
             results = epi_model.run(BASE_PARAMS | c_params | s_params, solver_kwargs=SOLVER_KWARGS)
             for ind, func in indicator_funcs.items():
-                output = func(results, age_strat, disease_state, clin_strat, infect_strat).to_pandas_df()
-                if is_age_stratified_output(output):
-                    output.columns.name = "age_group"
-                outputs[s][ind].append(output)
+                raw_out = func(results, age_strat, disease_state, clin_strat, infect_strat).to_pandas_df()
+                mid_out = annual_to_midyear(raw_out)
+                if is_age_stratified_output(mid_out):
+                    mid_out.columns.name = "age_group"
+                outputs[s][ind].append(mid_out)
     return outputs, sample_labels

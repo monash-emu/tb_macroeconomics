@@ -1,12 +1,14 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 from summer3.epi import Stratification, ManagedArray
 
 from tb_macro.constants import AGE_STRATA, INFECTED_STATES
 from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
 from tb_macro.targets import NOTIF_TARGET, LATENT_TARGET
+from tb_macro.utils import annual_to_midyear
 
 pd.options.plotting.backend = "matplotlib"
 
@@ -43,13 +45,15 @@ def plot_comp_distributions(
     clin_props = get_partial_strat_props(results, clin_strat).to_pandas_df().loc[plot_start_time: plot_end_time]
 
     fig, axes = plt.subplots(2, 3, figsize=[15, 7], sharex=True)
-    total_pop.plot.area(ax=axes[0, 0], title="total population versus target data", legend=False)
-    total_pop_target.plot(ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=1.0, label="target")
+    modelled_pop = total_pop.squeeze()
+    modelled_pop = modelled_pop.where(np.isfinite(modelled_pop))
+    total_pop_target.plot(ax=axes[0, 0], linewidth=0.0, color="k", marker="o", markersize=2.0, label="target")
+    modelled_pop.plot(ax=axes[0, 0], title="total population versus target data", label="modelled")
     dstate_props.clip(lower=0).plot.area(ax=axes[1, 0], title="disease state distribution", ylim=[0.0, 1.0])
-    age_vals.plot.area(ax=axes[0, 1], title="age group sizes")
-    age_props.plot.area(ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0])
-    clin_props.clip(0.0).plot.area(ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0])
-    inf_props.plot.area(ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0])
+    age_vals.clip(lower=0).plot.area(ax=axes[0, 1], title="age group sizes")
+    age_props.clip(lower=0).plot.area(ax=axes[0, 2], title="age distribution", ylim=[0.0, 1.0])
+    clin_props.clip(lower=0).plot.area(ax=axes[1, 1], title="clinical status distribution", ylim=[0.0, 1.0])
+    inf_props.clip(lower=0).plot.area(ax=axes[1, 2], title="infectiousness status distribution", ylim=[0.0, 1.0])
     for ax in axes.ravel():
         ax.legend(loc="upper left")
     plt.close()
@@ -292,14 +296,12 @@ def plot_single_run_comparison(results, disease_state, who_mort, start, end):
 
     # Notifications
     notif_ax = axes[0, 0]
-    notifs_modelled = (
+    notifs_modelled = annual_to_midyear(
         (
             results["flows"]["detection"].sum(to_dims="time")
             + results["flows"]["acf"].sum(to_dims="time")
-        )
-        .to_pandas_df()
-        .loc[start:end]
-    )
+        ).to_pandas_df()
+    ).loc[start:end]
     notifs_modelled.plot(ax=notif_ax, label="modelled")
     NOTIF_TARGET.plot(ax=notif_ax, linewidth=0.0, marker="o", label="target")
     notif_ax.set_ylim(bottom=0.0)
@@ -308,16 +310,16 @@ def plot_single_run_comparison(results, disease_state, who_mort, start, end):
 
     # Latent
     latent_ax = axes[0, 1]
-    total_pop = (
-        results["compartments"].sum(to_dims="time").to_pandas_df().loc[start:end]
-    )
+    total_pop = annual_to_midyear(
+        results["compartments"].sum(to_dims="time").to_pandas_df()
+    ).loc[start:end]
     infected_states = results["compartments"].query(
         compartment=disease_state[INFECTED_STATES]
     )
     latent_ax.set_ylim(bottom=0.0, top=100.0)
-    latent_modelled = (
-        infected_states.sum(to_dims="time").to_pandas_df() / total_pop * 100.0
-    )
+    latent_modelled = annual_to_midyear(
+        infected_states.sum(to_dims="time").to_pandas_df()
+    ).loc[start:end] / total_pop * 100.0
     latent_modelled.plot(ax=latent_ax, label="modelled")
     LATENT_TARGET.plot(ax=latent_ax, linewidth=0.0, marker="o", label="target")
     latent_ax.legend()
@@ -325,14 +327,13 @@ def plot_single_run_comparison(results, disease_state, who_mort, start, end):
 
     # Mortality
     mort_ax = axes[1, 0]
-    community_death_age = (
-        results["flows"]["tb_mortality"]
-        .sum(to_dims="time")
-        .to_pandas_df()
-        .loc[start:end]
+    community_death_age = annual_to_midyear(
+        results["flows"]["tb_mortality"].sum(to_dims="time").to_pandas_df()
     )
-    rx_death_age = results["flows"]["rx_death"].sum(to_dims="time").to_pandas_df()
-    deaths = community_death_age + rx_death_age
+    rx_death_age = annual_to_midyear(
+        results["flows"]["rx_death"].sum(to_dims="time").to_pandas_df()
+    )
+    deaths = (community_death_age + rx_death_age).loc[start:end]
     deaths.plot(ax=mort_ax)
     who_mort.plot(ax=mort_ax, linewidth=0.0, marker="o", label="target")
     mort_ax.set_title("mortality")

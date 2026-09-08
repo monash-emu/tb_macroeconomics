@@ -4,6 +4,9 @@ from collections import namedtuple
 import logging
 import sys
 from pathlib import Path
+import pandas as pd
+
+from tb_macro.constants import START_TIME, CALENDAR_YEAR_MIDPOINT
 
 InterpolatorScaleData = namedtuple(
     "InterpolatorScaleData", ["points", "ranges", "bounds"]
@@ -179,3 +182,52 @@ def get_logger(log_file: Path):
     root_logger.setLevel(logging.INFO)
 
     return root_logger
+
+
+def lerp_annual_output(
+    y, 
+    query_times, 
+    start_time: float = START_TIME,
+):
+    """Linearly interpolate annual solver output to calendar times.
+
+    Args:
+        y: Array whose first axis is annual steps from start_time
+        query_times: Calendar times to evaluate, e.g. mid-year points
+        start_time: Model start year, matching the solver time grid
+
+    Returns:
+        Interpolated values at query_times
+    """
+    y = jnp.squeeze(jnp.asarray(y))
+    years = start_time + jnp.arange(y.shape[0])
+    return jnp.interp(jnp.asarray(query_times, dtype=y.dtype), years, y)
+
+
+def interp_annual_to_times(
+    output_df: pd.DataFrame | pd.Series, times,
+) -> pd.DataFrame | pd.Series:
+    """Linearly interpolate an annually indexed series to query times.
+
+    Args:
+        output_df: Solver output indexed by calendar year
+        times: Calendar times to evaluate
+
+    Returns:
+        The interpolated values at times
+    """
+    times = pd.Index(times, dtype=float)
+    base = output_df.copy()
+    base.index = base.index.astype(float)
+    out = base.reindex(base.index.union(times)).sort_index().interpolate(method="index")
+    return out.reindex(times)
+
+
+def annual_to_midyear(df: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
+    """Interpolate annual solver output onto mid-year points.
+    The last annual point has no following year, so the mid-year
+    series is one step shorter than the solver grid.
+    """
+    years = df.index.astype(float)
+    mid_times = years[:-1] + CALENDAR_YEAR_MIDPOINT
+    return interp_annual_to_times(df, mid_times)
