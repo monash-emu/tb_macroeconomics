@@ -67,7 +67,17 @@ if __name__ == "__main__":
     initialise_pops(epi_model, disease_state, age_strat, start_apops)
 
     priors = {k: dist.Uniform(v[0], v[1]) for k, v in PARAM_BOUNDS.items()}
-    log_like = make_log_likelihood(epi_model, disease_state, age_strat, infect_strat, SOLVER_KWARGS, who_mort)
+    log_like = make_log_likelihood(
+        epi_model,
+        disease_state,
+        age_strat,
+        infect_strat,
+        SOLVER_KWARGS,
+        who_mort,
+        age_weights,
+        group_popsize,
+        fert_padded,
+    )
 
     def model():
         params = BASE_PARAMS | {k: numpyro.sample(k, v) for k, v in priors.items()}

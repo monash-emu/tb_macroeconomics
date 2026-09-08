@@ -3,7 +3,10 @@ import re
 import numpy as np
 import pandas as pd
 
-from tb_macro.constants import BASE_PATH, DATA_PATH, AGE_STRATA, MAX_AGE, CALENDAR_YEAR_MIDPOINT
+from jax import numpy as jnp
+
+from tb_macro.constants import BASE_PATH, DATA_PATH, AGE_STRATA, MAX_AGE, CALENDAR_YEAR_MIDPOINT, ISO3
+from tb_macro.mixing import normalise_by_spectral_radius
 
 
 def get_country_pop(
@@ -189,7 +192,9 @@ def convert_conmat(
     Notes:
     -----
     Contact rates are arranged as a square matrix indexed by the
-    model age groups: {{AGE_STRATA}}.
+    model age groups: {{AGE_STRATA}}. The matrix is produced by the
+    conmat R package from POLYMOD contact patterns projected onto
+    the country's age structure.
     """
     conmat = data.assign(
         age_from=data["age_group_from"].map(lower_conmat),
@@ -200,6 +205,28 @@ def convert_conmat(
         columns="age_to",
         values="contacts",
     ).reindex(index=AGE_STRATA, columns=AGE_STRATA)
+
+
+def get_norm_conmat(
+    iso3: str = ISO3,
+) -> jnp.ndarray:
+    """Load the synthetic contact matrix and normalise by spectral radius.
+
+    Args:
+        iso3: The country identifier
+
+    Returns:
+        Spectral-radius-normalised contact matrix over the model age groups
+
+    Notes:
+    -----
+    The conmat package fits a contact model to the POLYMOD survey and
+    predicts all-setting contact rates for the modelled age groups of
+    {{ISO3}}. The resulting matrix is divided by its spectral radius so
+    that it is comparable with the model's normalised mixing matrix.
+    """
+    matrix = jnp.asarray(convert_conmat(load_conmat(iso3)).to_numpy())
+    return normalise_by_spectral_radius(matrix)
 
 
 def build_age_weight_lookup(

@@ -1,6 +1,6 @@
 from jax import numpy as jnp
 
-from tb_macro.constants import AGE_STRATA, MAX_AGE
+from tb_macro.constants import AGE_STRATA, CANBERRA_EPS, MAX_AGE
 
 
 def get_year_index(
@@ -306,6 +306,50 @@ def get_norm_c_matrix(
         a_spread,
         pc_strength,
     )
-    eigvals = jnp.linalg.eigvals(c_matrix)
+    return normalise_by_spectral_radius(c_matrix)
+
+
+def normalise_by_spectral_radius(
+    matrix: jnp.array,
+) -> jnp.array:
+    """Divide a square matrix by its spectral radius.
+
+    Args:
+        matrix: Square matrix to normalise
+
+    Returns:
+        The matrix scaled so that its dominant eigenvalue is one
+    """
+    eigvals = jnp.linalg.eigvals(matrix)
     spectral_radius = jnp.max(jnp.abs(eigvals))
-    return c_matrix / spectral_radius
+    return matrix / spectral_radius
+
+
+def canberra_distance(
+    m1: jnp.array,
+    m2: jnp.array,
+) -> jnp.array:
+    r"""Canberra distance between two matrices of the same shape.
+
+    Args:
+        m1: First matrix
+        m2: Second matrix
+
+    Returns:
+        The Canberra distance
+
+    Notes:
+    -----
+    The Canberra distance is the sum over corresponding cells of the
+    absolute difference divided by the sum of the absolute values,
+    $$
+    d = \sum_{i,j}
+    \frac{|x_{ij} - y_{ij}|}{|x_{ij}| + |y_{ij}| + \varepsilon}
+    $$
+    with $\varepsilon$ of {{CANBERRA_EPS}} to avoid division by zero.
+    Because each term is a relative discrepancy, low-contact cells
+    contribute comparably to high-contact cells.
+    """
+    x = m1.reshape(-1)
+    y = m2.reshape(-1)
+    return jnp.sum(jnp.abs(x - y) / (jnp.abs(x) + jnp.abs(y) + CANBERRA_EPS))

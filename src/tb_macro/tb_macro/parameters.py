@@ -26,7 +26,7 @@ BASE_PARAMS = {
     "raw_transmission_rate": 15.0,
     "bg_mixing": 0.03,
     "a_spread": 10.0,
-    "pc_strength": 1.1,
+    "pc_strength": 0.5,
     "rel_sus_contained": 0.3,
     "rel_sus_cleared": 0.7,
     "rel_sus_children": 0.6,
@@ -38,12 +38,13 @@ BASE_PARAMS = {
     "rel_detect_2010": 0.8,
     "rel_detect_1986": 0.5,
     "prop_lowinf_bactpos": 2.0 / 3.0,
+    "mixing_dist_sd": 10.0,
 }
 PARAM_BOUNDS = {
     "raw_transmission_rate": [12.0, 20.0],
-    "bg_mixing": [0.002, 0.04],
-    "a_spread": [5.0, 15.0],
-    "pc_strength": [1.0, 2.5],
+    "bg_mixing": [0.01, 0.05],
+    "a_spread": [2.0, 15.0],
+    "pc_strength": [0.01, 1.0],
     "rel_sus_contained": [0.2, 0.6],
     "rel_sus_cleared": [0.5, 1.0],
     "rel_sus_children": [0.5, 1.0],
@@ -54,6 +55,7 @@ PARAM_BOUNDS = {
     "detect_rate_current": [0.5, 1.5],
     "rel_detect_2010": [0.5, 1.0],
     "rel_detect_1986": [0.25, 0.75],
+    "mixing_dist_sd": [5.0, 20.0],
 }
 PARAM_NAMES = {
     "rel_infectiousness_subclin": "relative infectiousness of subclinical TB",
@@ -95,6 +97,7 @@ PARAM_NAMES = {
     "rel_detect_2010": "relative detection rate in 2010 compared to current",
     "rel_detect_1986": "relative detection rate in 1986 compared to 2010",
     "rx_duration": "treatment duration",
+    "mixing_dist_sd": "mixing matrix distance standard deviation",
 }
 
 _unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
