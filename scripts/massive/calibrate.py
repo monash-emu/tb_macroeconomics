@@ -24,7 +24,7 @@ import arviz as az
 from datetime import datetime, UTC
 
 from tb_macro.utils import get_logger
-from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS
+from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS, get_nuts_init_values
 from tb_macro.inputs import load_demography, load_fertility, load_who_outcomes
 from tb_macro.demography import prepare_pop_data_for_entries
 from tb_macro.epi import get_base_model, add_flows_to_model, initialise_pops
@@ -84,7 +84,11 @@ if __name__ == "__main__":
         ll = log_like(params)
         numpyro.factor("ll", ll)
 
-    kernel = infer.NUTS(model, max_tree_depth=5, init_strategy=infer.init_to_median())
+    kernel = infer.NUTS(
+        model,
+        max_tree_depth=5,
+        init_strategy=infer.init_to_value(values=get_nuts_init_values()),
+    )
     mcmc = infer.MCMC(
         kernel,
         num_warmup=n_runs,

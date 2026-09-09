@@ -23,21 +23,21 @@ BASE_PARAMS = {
     "acf_start": 2027,
     "acf_duration": 5.0,
     "acf_scaling_time": 1.0,
-    "raw_transmission_rate": 15.0,
-    "bg_mixing": 0.01,
-    "a_spread": 10.0,
-    "pc_strength": 0.5,
-    "rel_sus_contained": 0.3,
-    "rel_sus_cleared": 0.7,
-    "rel_sus_children": 0.6,
-    "breakdown_rate": 0.3,
-    "clearance_rate": 0.05,
-    "clinical_progression_rate": 2.0,
-    "infectiousness_gain_rate": 0.2,
-    "detect_rate_current": 0.8,
-    "rel_detect_2007": 0.4,
-    "rel_detect_1986": 0.4,
-    "rel_detect_2021": 0.78,
+    "raw_transmission_rate": 14.08,
+    "bg_mixing": 0.0103,
+    "a_spread": 9.87,
+    "pc_strength": 0.544,
+    "rel_sus_contained": 0.547,
+    "rel_sus_cleared": 0.8,
+    "rel_sus_children": 0.235,
+    "breakdown_rate": 0.5,
+    "clearance_rate": 0.088,
+    "clinical_progression_rate": 1.85,
+    "infectiousness_gain_rate": 0.350,
+    "detect_rate_current": 0.861,
+    "rel_detect_2007": 0.6,
+    "rel_detect_1986": 0.6,
+    "rel_detect_2021": 0.5,
     "prop_lowinf_bactpos": 2.0 / 3.0,
     "mixing_dist_sd": 10.0,
 }
@@ -54,10 +54,27 @@ PARAM_BOUNDS = {
     "clinical_progression_rate": [0.5, 5.0],
     "infectiousness_gain_rate": [0.1, 1.0],
     "detect_rate_current": [0.5, 1.5],
-    "rel_detect_2007": [0.5, 0.8],
-    "rel_detect_1986": [0.5, 0.8],
+    "rel_detect_2007": [0.6, 0.9],
+    "rel_detect_1986": [0.6, 0.9],
+    "rel_detect_2021": [0.4, 0.8],
     "mixing_dist_sd": [5.0, 20.0],
 }
+
+
+def get_nuts_init_values(eps: float = 1e-4) -> dict[str, float]:
+    """Interior NUTS starting values from BASE_PARAMS.
+
+    Uniform priors are open at the endpoints, so values that sit on
+    PARAM_BOUNDS are pulled a fraction of the interval inside.
+    """
+    init = {}
+    for name, (low, high) in PARAM_BOUNDS.items():
+        value = float(BASE_PARAMS[name])
+        pad = eps * (high - low)
+        init[name] = min(max(value, low + pad), high - pad)
+    return init
+
+
 PARAM_NAMES = {
     "rel_infectiousness_subclin": "relative infectiousness of subclinical TB",
     "rel_infectiousness_lowinf": "relative infectiousness of low-infectious TB",
@@ -97,7 +114,7 @@ PARAM_NAMES = {
     "detect_rate_current": "current detection rate",
     "rel_detect_2007": "relative detection rate in 2007 compared to current",
     "rel_detect_1986": "relative detection rate in 1986 compared to 2007",
-    "rel_detect_2021": "relative detection rate in 2021 compared to current",
+    "rel_detect_2021": "COVID-19-related detection reduction",
     "rx_duration": "treatment duration",
     "mixing_dist_sd": "mixing matrix distance standard deviation",
 }
