@@ -9,7 +9,7 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Time, Parameter
 
-from tb_macro.utils import get_scale_data, get_cos_multicurve, get_four_element_multicurve
+from tb_macro.utils import get_scale_data, get_cos_multicurve, get_six_element_multicurve
 from tb_macro.demography import make_multi_interp_array_func
 
 
@@ -35,27 +35,35 @@ def add_detection(
 
     The rate of detection remains zero until 1957 
     and then follows a cosine-smoothed
-    scale-up through 1986 and 2010 to the "{{detect_rate_current}}"
-    in 2020. The 2010 rate is the current rate multiplied by the
-    "{{rel_detect_2010}}", and the 1986 rate is that 2010 rate
+    scale-up through 1986 and 2007 to the "{{detect_rate_current}}"
+    in 2020. The 2007 rate is the current rate multiplied by the
+    "{{rel_detect_2007}}", and the 1986 rate is that 2007 rate
     multiplied by the "{{rel_detect_1986}}".
+    Detection then falls in 2021 to the current rate multiplied by the
+    "{{rel_detect_2021}}", and returns to the current rate in 2022.
     """
     detect_rate_2020 = Parameter("detect_rate_current", 0.0)
-    detect_rate_2010 = detect_rate_2020 * Parameter("rel_detect_2010", 0.0)
-    detect_rate_1986 = detect_rate_2010 * Parameter("rel_detect_1986", 0.0)
+    detect_rate_2007 = detect_rate_2020 * Parameter("rel_detect_2007", 0.0)
+    detect_rate_1986 = detect_rate_2007 * Parameter("rel_detect_1986", 0.0)
     detect_rate_1957 = 0.0
+    detect_rate_2021 = detect_rate_2020 * Parameter("rel_detect_2021", 0.0)
+    detect_rate_2022 = detect_rate_2020
 
     sim_time = Time + start_time
-    detect_func = defer(get_four_element_multicurve)(
+    detect_func = defer(get_six_element_multicurve)(
         sim_time,
         1957.0,
         detect_rate_1957,
         1986.0,
         detect_rate_1986,
-        2010.0,
-        detect_rate_2010,
+        2007.0,
+        detect_rate_2007,
         2020.0,
         detect_rate_2020,
+        2021.0,
+        detect_rate_2021,
+        2022.0,
+        detect_rate_2022,
     )
 
     source = (disease_state["active"], clin_strat["clin"])

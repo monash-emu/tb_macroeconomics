@@ -74,43 +74,52 @@ def _logit_normal_log_prob(modelled, target, sd=PROP_LOGIT_SD):
     return dist.Normal(_logit(jnp.asarray(target)), sd).log_prob(_logit(modelled))
 
 
-def get_latent_log_likelihood(results: dict, disease_state: Stratification):
+def get_latent_log_likelihood(
+    results: dict,
+    disease_state: Stratification,
+    age_strat: Stratification,
+):
     r"""Get the likelihood contribution from the prevalence of Mtb infection.
 
     Args:
         results: The outputs of a single model run
         disease_state: The compartmental stratification object
+        age_strat: The age stratification object
 
     Returns:
         The log-likelihood contribution
 
     Notes:
     -----
-    The proportion of the population ever infected with _Mtb_ was compared
-    against the estimate from the tuberculin survey reported by Marks et al.
-    (Bulletin of the World Health Organization).
+    The proportion of adults ever infected with _Mtb_ was compared
+    against the interferon-gamma release assay survey of people aged
+    {{YOUNG_END_AGE}} years and over reported by Marks et al.
+    (International Journal of Tuberculosis and Lung Disease).
 
     The modelled equivalent is everyone not previously infected with 
     _Mtb_, which is represented by all modelled compartments other than
-    _Mtb_ naive. That is, the {{INFECTED_STATES}} states, 
-    divided by the total population at the time of the survey.
-    All modelled age groups contributed to both the numerator and the denominator.
+    _Mtb_-naive. That is, the {{INFECTED_STATES}} states among adults,
+    divided by the adult population at the time of the survey.
 
     Being a proportion, this quantity was compared on the log-odds scale with
     a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = LATENT_TARGET.index[0]
     target_val = LATENT_TARGET.iloc[0] / 1e2
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
     latent = lerp_annual_output(
         results["compartments"]
-        .query(compartment=disease_state[INFECTED_STATES])
+        .query(compartment=(disease_state[INFECTED_STATES], adult_ages))
         .sum(to_dims="time")
         .data,
         target_time,
         START_TIME,
     )
     total = lerp_annual_output(
-        results["compartments"].sum(to_dims="time").data,
+        results["compartments"]
+        .query(compartment=adult_ages)
+        .sum(to_dims="time")
+        .data,
         target_time,
         START_TIME,
     )
@@ -473,7 +482,7 @@ def make_log_likelihood(
     Notes:
     -----
     The log-likelihood is the sum of seven contributions, taken as
-    independent: the prevalence of _Mtb_ infection, case notifications, TB
+    independent: the adult prevalence of _Mtb_ infection, case notifications, TB
     deaths, adult bacteriologically-confirmed prevalence, the decline in
     prevalence between the two prevalence survey rounds, the proportion of
     prevalent disease that is highly infectious, and the Canberra distance
@@ -518,7 +527,7 @@ def make_log_likelihood(
     def get_log_likelihood(params):
         results = epi_model.run(params, solver_kwargs=solver_kwargs)
         ll = (
-            get_latent_log_likelihood(results, disease_state)
+            get_latent_log_likelihood(results, disease_state, age_strat)
             + get_notification_log_likelihood(results)
             + get_death_log_likelihood(results, who_mort)
             + get_pulm_prev_log_likelihood(

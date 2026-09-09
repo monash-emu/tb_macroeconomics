@@ -164,6 +164,28 @@ def get_four_element_multicurve(
     times = get_scale_data(jnp.array([time_0, time_1, time_2, time_3]))
     vals = get_scale_data(jnp.array([val_0, val_1, val_2, val_3]))
     return get_cos_multicurve(t, times, vals)
+
+
+def get_six_element_multicurve(
+    t,
+    time_0,
+    val_0,
+    time_1,
+    val_1,
+    time_2,
+    val_2,
+    time_3,
+    val_3,
+    time_4,
+    val_4,
+    time_5,
+    val_5,
+):
+    times = get_scale_data(
+        jnp.array([time_0, time_1, time_2, time_3, time_4, time_5])
+    )
+    vals = get_scale_data(jnp.array([val_0, val_1, val_2, val_3, val_4, val_5]))
+    return get_cos_multicurve(t, times, vals)
     
 
 def get_logger(log_file: Path):

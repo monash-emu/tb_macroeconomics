@@ -29,7 +29,7 @@ NOTIF_TARGET = _at_midyear(
     }
 )
 
-# Marks et al., Bull WHO
+# Marks et al., IJTLD; adults aged 15 years and over
 LATENT_TARGET = _at_midyear(
     {
         2016.0: 36.8,

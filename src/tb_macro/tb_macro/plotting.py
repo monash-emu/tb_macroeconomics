@@ -126,7 +126,7 @@ COUNT_TITLES = {
     "incidence": "incident cases per year",
     "notifications": "notified cases per year",
     "deaths": "deaths per year",
-    "latent": "infected population number",
+    "latent": "adult infected population number",
     "pulm_prev": "adult pulmonary bacteriologically-detectable cases",
 }
 RATE_TITLES = {
@@ -134,7 +134,7 @@ RATE_TITLES = {
     "incidence": "incidence per 100,000 per year",
     "notifications": "notifications per 100,000 per year",
     "deaths": "deaths per 100,000 per year",
-    "latent": "percentage with latent infection",
+    "latent": "percentage of adults with latent infection",
     "pulm_prev": "adult pulmonary bacteriologically-detectable prevalence per 100,000",
 }
 
@@ -205,8 +205,8 @@ def plot_outputs(
         notif_target: Notification target - a count (i.e. cases per year)
         tb_death: Death data
         death_target: Deaths target - a count (i.e. deaths per year)
-        latent: Latent data
-        latent_target: Latent target - a percentage
+        latent: Adult latent (ever-infected) counts
+        latent_target: Adult latent target - a percentage
         total_pop: Population size data
         plot_start: Year to plot from
         end_time: End of simulation run
@@ -244,7 +244,7 @@ def plot_outputs(
             "incidence": inc.div(total_pop, axis=0) * 1e5,
             "notifications": notif.div(total_pop, axis=0) * 1e5,
             "deaths": tb_death.div(total_pop, axis=0) * 1e5,
-            "latent": latent.div(total_pop, axis=0) * 1e2,
+            "latent": latent.div(adult_pop, axis=0) * 1e2,
             "pulm_prev": pulm_prev.div(adult_pop, axis=0) * 1e5,
         }
     else:
@@ -378,7 +378,7 @@ def plot_single_run_comparison(
     """Compare a single run against the epidemiological calibration targets.
 
     The time-series panels overlay modelled output on the quantities used in
-    the likelihood: notifications, TB deaths, latent infection, adult
+    the likelihood: notifications, TB deaths, adult latent infection, adult
     pulmonary prevalence (with the survey decline implied by the 2017
     target), and the highly infectious share of that prevalence. The final
     panel summarises modelled / target at the likelihood comparison points.
@@ -389,16 +389,18 @@ def plot_single_run_comparison(
     deaths = _managed_to_annual(results["flows"]["tb_mortality"]) + _managed_to_annual(
         results["flows"]["rx_death"]
     )
-    total_pop = _managed_to_annual(results["compartments"])
-    latent = (
-        _managed_to_annual(
-            results["compartments"].query(compartment=disease_state[INFECTED_STATES])
-        )
-        / total_pop
-        * 100.0
-    )
     high_inf, pulm_prev, adult_pop = _adult_pulm_prev_series(
         results, disease_state, age_strat, infect_strat
+    )
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
+    latent = (
+        _managed_to_annual(
+            results["compartments"].query(
+                compartment=(disease_state[INFECTED_STATES], adult_ages)
+            )
+        )
+        / adult_pop
+        * 100.0
     )
     pulm_prev_rate = pulm_prev / adult_pop * 1e5
     inf_prop = high_inf / pulm_prev * 100.0
@@ -424,7 +426,7 @@ def plot_single_run_comparison(
         axes[1, 0],
         _midyear_window(latent, start, end),
         LATENT_TARGET,
-        "percentage with latent infection",
+        "percentage of adults with latent infection",
         start,
         end,
     )
