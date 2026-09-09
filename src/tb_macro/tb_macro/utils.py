@@ -231,3 +231,12 @@ def annual_to_midyear(df: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
     years = df.index.astype(float)
     mid_times = years[:-1] + CALENDAR_YEAR_MIDPOINT
     return interp_annual_to_times(df, mid_times)
+
+
+def add_midyear_points(df: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
+    """Keep 1 January solver values and insert interpolated mid-year points.
+
+    The last annual point has no following year, so no mid-year is added after it.
+    """
+    years = df.index.astype(float)
+    return interp_annual_to_times(df, years.union(years[:-1] + CALENDAR_YEAR_MIDPOINT))

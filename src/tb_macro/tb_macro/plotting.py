@@ -1,8 +1,13 @@
+from typing import Dict, List, Optional
+
+import arviz as az
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from arviz import InferenceData
 from jax import numpy as jnp
+from numpyro import distributions as dist
 
 from summer3.epi import Stratification, ManagedArray
 
@@ -16,7 +21,7 @@ from tb_macro.constants import (
 from tb_macro.inputs import get_norm_conmat
 from tb_macro.mixing import canberra_distance
 from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
-from tb_macro.parameters import BASE_PARAMS
+from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS, PARAM_NAMES
 from tb_macro.targets import (
     INF_PREV_TARGET,
     LATENT_TARGET,
@@ -532,5 +537,67 @@ def plot_mixing_target_comparison(
         ax.set_xlabel("age group")
         ax.set_ylabel("age group")
     fig.suptitle(f"mixing target comparison, Canberra distance {distance:.2f}")
+    plt.close()
+    return fig
+
+
+def _current_priors() -> Dict[str, dist.Distribution]:
+    """Uniform priors from the current PARAM_BOUNDS."""
+    return {k: dist.Uniform(v[0], v[1]) for k, v in PARAM_BOUNDS.items()}
+
+
+def _prior_density(distri: dist.Distribution, x_vals: np.ndarray) -> np.ndarray:
+    """Evaluate a numpyro distribution density, including batched priors."""
+    x_eval = jnp.asarray(x_vals)
+    if len(distri.batch_shape) == 0:
+        logp = distri.log_prob(x_eval)
+    else:
+        logp = distri.log_prob(x_eval[:, None])[:, 0]
+    return np.exp(np.asarray(logp))
+
+
+def plot_prior_post(
+    idata: InferenceData,
+    var_names: List[str],
+    n_cols: int = 3,
+) -> plt.Figure:
+    """Compare posterior densities to the current-repository priors.
+
+    Posterior panels use ``az.plot_density``. Priors are overlaid as a grey
+    fill, scaled to the posterior panel height as in the previous project.
+
+    Args:
+        idata: Calibration inference data
+        var_names: Posterior variables to plot
+        n_cols: Number of subplot columns
+
+    Returns:
+        The figure
+    """
+    n_rows = int(np.ceil(len(var_names) / n_cols))
+    priors = _current_priors()
+    axes = az.plot_density(
+        idata, var_names=var_names, shade=0.3, grid=[n_rows, n_cols], figsize=[10, 4 * n_rows]
+    )
+    for ax in axes.ravel():
+        param = ax.title.get_text().split("\n")[0]
+        if param not in priors:
+            continue
+        ax.set_title(PARAM_NAMES[param])
+        distri = priors[param]
+        ax_low, ax_high = ax.get_xlim()
+        low = float(getattr(distri, "low", ax_low))
+        high = float(getattr(distri, "high", ax_high))
+        pad = 0.05 * (high - low)
+        x_min = low - pad
+        x_max = high + pad
+        x_vals = np.linspace(x_min, x_max, 200)
+        y_vals = _prior_density(distri, x_vals)
+        y_peak = float(np.nanmax(y_vals))
+        y_vals = y_vals * (ax.get_ylim()[1] / y_peak)
+        ax.fill_between(x_vals, y_vals, color="k", alpha=0.2, linewidth=2)
+        ax.set_xlim(x_min, x_max)
+    fig = ax.figure
+    fig.tight_layout()
     plt.close()
     return fig

@@ -10,7 +10,18 @@ from summer3.epi import ManagedArray, Stratification, CompartmentalEpiModel
 
 from tb_macro.constants import PREV_STATES, INFECTED_STATES, AGE_STRATA, SOLVER_KWARGS
 from tb_macro.parameters import BASE_PARAMS
-from tb_macro.utils import annual_to_midyear
+from tb_macro.utils import add_midyear_points
+
+
+def _wpp_year_for_output_time(times: pd.Series) -> pd.Series:
+    """Map output times to the 1 January WPP year used for age structure.
+
+    Output times may be 1 January solver values or interpolated mid-year
+    points. UN population counts in this project are 1 January stocks,
+    indexed by integer calendar year, so each time uses that same year's
+    1 January age distribution.
+    """
+    return np.floor(times.astype(float)).astype(int)
 
 
 def get_complete_strat_props(
@@ -371,15 +382,28 @@ def regroup_output(
 
     Returns:
         The regrouped output
+
+    Notes:
+    -----
+    Output times may be mid-year, while the mapping is built from
+    1 January WPP counts. Each output time is joined to the 1 January
+    age structure of the same calendar year.
     """
 
     # Convert output to long form
     out_long = output.reset_index(names="Time").melt(
         id_vars="Time", var_name="model_agegroup", value_name="value"
     )
+    out_long["pop_year"] = _wpp_year_for_output_time(out_long["Time"])
+    out_long["model_agegroup"] = out_long["model_agegroup"].astype(str)
+
+    mapping = mapping.copy()
+    mapping["pop_year"] = mapping["Time"].astype(int)
+    mapping["model_agegroup"] = mapping["model_agegroup"].astype(str)
+    mapping = mapping.drop(columns="Time")
 
     # Calculate weights for each modelled age group to each output age group
-    weighted = out_long.merge(mapping, on=["Time", "model_agegroup"])
+    weighted = out_long.merge(mapping, on=["pop_year", "model_agegroup"])
 
     # Multiply output value through by weight
     weighted["value"] *= weighted["fraction"]
@@ -412,17 +436,11 @@ def map_and_regroup_output(
     -----
     Age-stratified outputs are reallocated from modelled age
     groups to requested output age groups using the population
-    overlap fractions.
+    overlap fractions. Those fractions come from 1 January WPP
+    counts for the calendar year of each (possibly mid-year)
+    output time.
     """
-
-    # Add columns for the modelled and output age groups corresponding to each single year age
-    assign_age_groups(single_age_pops, output.columns, "model_agegroup")
-    assign_age_groups(single_age_pops, out_groups, "output_agegroup")
-
-    # Create the mapping object
-    mapping = build_age_mapping(single_age_pops, "model_agegroup", "output_agegroup")
-
-    # Regroup the output according to the mapping
+    mapping = _age_mapping_from_pops(output.columns, single_age_pops, out_groups)
     return regroup_output(output, mapping)
 
 
@@ -448,21 +466,42 @@ def regroup_full_outputs(
     Age-stratified outputs are regrouped to the requested age
     bands. Outputs without age structure are left unchanged
     aside from aligning their times to the population data.
+    The WPP age-structure mapping is built once and reused,
+    joining each mid-year output to that year's 1 January
+    population.
     """
 
     # Create empty data structure
     regrouped_outs = [{out: [] for out in outputs[0]} for _ in range(len(outputs))]
+    mapping = None
+    pop_start = single_age_pops["Time"].min()
 
     # Iterate through outputs with model age groups to populate regrouped data
     for s, scenario_outputs in enumerate(outputs):
         for ind, raw_outputs in scenario_outputs.items():
             for output in raw_outputs:
                 if output.columns.name == "age_group":
-                    regrouped_out = map_and_regroup_output(output, single_age_pops, out_groups)
+                    if mapping is None:
+                        mapping = _age_mapping_from_pops(
+                            output.columns, single_age_pops, out_groups
+                        )
+                    regrouped_out = regroup_output(output, mapping)
                 else:
-                    regrouped_out = output.loc[single_age_pops["Time"].min():]
+                    regrouped_out = output.loc[pop_start:]
                 regrouped_outs[s][ind].append(regrouped_out)
     return regrouped_outs
+
+
+def _age_mapping_from_pops(
+    model_age_columns,
+    single_age_pops: pd.DataFrame,
+    out_groups: List[int],
+) -> pd.DataFrame:
+    """Build the modelled-to-output age mapping from 1 January WPP counts."""
+    pops = single_age_pops.copy()
+    assign_age_groups(pops, model_age_columns, "model_agegroup")
+    assign_age_groups(pops, out_groups, "output_agegroup")
+    return build_age_mapping(pops, "model_agegroup", "output_agegroup")
 
 
 def rerun_model_for_outputs(
@@ -490,6 +529,13 @@ def rerun_model_for_outputs(
 
     Returns:
         The sampled model outputs
+
+    Notes:
+    -----
+    Solver output is annual on 1 January. Mid-year points are then
+    linearly interpolated and inserted, so each indicator is returned
+    on a six-month grid: integer years are modelled values, and
+    half-years are interpolants.
     """
     indicator_funcs = {
         "incidence": get_age_inc,
@@ -513,8 +559,8 @@ def rerun_model_for_outputs(
             results = epi_model.run(BASE_PARAMS | c_params | s_params, solver_kwargs=SOLVER_KWARGS)
             for ind, func in indicator_funcs.items():
                 raw_out = func(results, age_strat, disease_state, clin_strat, infect_strat).to_pandas_df()
-                mid_out = annual_to_midyear(raw_out)
-                if is_age_stratified_output(mid_out):
-                    mid_out.columns.name = "age_group"
-                outputs[s][ind].append(mid_out)
+                out = add_midyear_points(raw_out)
+                if is_age_stratified_output(out):
+                    out.columns.name = "age_group"
+                outputs[s][ind].append(out)
     return outputs, sample_labels
