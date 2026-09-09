@@ -54,8 +54,8 @@ PARAM_BOUNDS = {
     "clinical_progression_rate": [0.5, 5.0],
     "infectiousness_gain_rate": [0.1, 1.0],
     "detect_rate_current": [0.5, 1.5],
-    "rel_detect_2007": [0.2, 0.8],
-    "rel_detect_1986": [0.2, 0.5],
+    "rel_detect_2007": [0.5, 0.8],
+    "rel_detect_1986": [0.5, 0.8],
     "mixing_dist_sd": [5.0, 20.0],
 }
 PARAM_NAMES = {
