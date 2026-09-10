@@ -269,8 +269,7 @@ def add_entry_births(
     Together with replacement of background deaths, this
     produces a population that closely tracks 
     the totals targeted, while ensuring that the population remains
-    fully infection-naive at birth.
-    Negative entries are more than compensated by 
+    fully infection-naive at birth. Negative entries are more than compensated by 
     the death replacements as births.
     """
     birth_func = get_birth_rate_func(start_time, rates, times)

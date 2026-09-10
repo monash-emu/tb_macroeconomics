@@ -524,7 +524,6 @@ def add_flows_to_model(
     add_acf(epi_model, disease_state, age_strat, infect_strat, START_TIME)
 
 
-
 def initialise_pops(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
@@ -541,10 +540,9 @@ def initialise_pops(
 
     Notes:
     -----
-    The simulation begins with the entire population in the
-    _Mtb_-naive compartment, distributed across the age groups
-    with lower bounds {{AGE_STRATA}} according to the supplied
-    starting age distribution.
+    The simulation begins with the entire population assigned to the
+    _Mtb_-naive compartment, distributed across the modelled age groups
+    according to the requested starting age distribution.
     """
     init_apops_series = pd.Series(
         index=[str(a) for a in AGE_STRATA], data=np.array(start_apops)
