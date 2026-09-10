@@ -24,11 +24,11 @@ from tb_macro.constants import (
     ALL_COMPARTMENTS,
     AGE_STRATA,
     INF_STRATA,
+    CLIN_STRATA,
     INFECT_COMPS,
     START_TIME,
     YOUNG_END_AGE,
     OUTPUT_TIME_STEP,
-    CALENDAR_YEAR_MIDPOINT,
 )
 from tb_macro.utils import get_triang_vals
 from tb_macro.mixing import get_norm_c_matrix
@@ -59,14 +59,8 @@ def get_base_model(
     -----
     All people within the simulation are assigned to one of the 
     following TB-related states: {{ALL_COMPARTMENTS}}.
-    These are stratified by age with lower bounds: {{AGE_STRATA}}
-    years. Active TB is further stratified by infectiousness
-    ({{INF_STRATA}}) and by clinical status (subclinical or
-    clinical).
-
-    The model is solved at steps of {{OUTPUT_TIME_STEP}} years.
-    Target comparisons interpolate those annual outputs to
-    mid-year ({{CALENDAR_YEAR_MIDPOINT}}).
+    Active TB is further stratified by infectiousness
+    ({{INF_STRATA}}) and by clinical status ({{CLIN_STRATA}}).
     """
     disease_state = Stratification("disease_state", ALL_COMPARTMENTS)
     humans = CompartmentMap.new(disease_state)
@@ -74,7 +68,7 @@ def get_base_model(
     age_strat = humans.stratify(Stratification("age", age_strings))
     infect_strat = Stratification("infectious", INF_STRATA)
     humans.stratify(infect_strat, (disease_state, ["active"]))
-    clin_strat = Stratification("clinical", ["subclin", "clin"])
+    clin_strat = Stratification("clinical", CLIN_STRATA)
     humans.stratify(clin_strat, (disease_state, ["active"]))
     times = pd.Index(np.arange(start_time, end_time, OUTPUT_TIME_STEP))
     return ModelSpec(

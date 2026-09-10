@@ -24,6 +24,10 @@ INF_STRATA = [
     "low",
     "high",
 ]
+CLIN_STRATA = [
+    "clin",
+    "subclin",
+]
 
 # Compartment characteristics
 PREV_STATES = [
