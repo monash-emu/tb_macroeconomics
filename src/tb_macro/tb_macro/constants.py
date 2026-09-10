@@ -36,6 +36,7 @@ INFECTED_STATES = [s for s in ALL_COMPARTMENTS if s != "mtb_naive"]
 AGE_STRATA = [0, 3, 5, 10, 15, 18, 40, 65]
 MAX_AGE = 120
 YOUNG_END_AGE = 15
+ACF_MIN_AGE = 10
 TOP_AGE_BRACKET_INFLATION = 2.0
 
 # Paths
@@ -62,4 +63,4 @@ SOLVER_KWARGS = {"max_steps": 4000}
 N_CHAINS_REMOTE = 8
 N_RUNS_LOCAL = 40
 N_OUTPUT_SAMPLES = 40
-SCENARIO_PARAMS = [{}, {"acf_coverage": 0.8, "acf_sensitivity": 0.8}]
+SCENARIO_PARAMS = [{}, {"acf_coverage": 0.8}]

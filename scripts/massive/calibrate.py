@@ -23,7 +23,7 @@ import jax
 import arviz as az
 from datetime import datetime, UTC
 
-from tb_macro.utils import get_logger
+from tb_macro.utils import get_logger, get_git_provenance, write_run_log
 from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS, get_nuts_init_values
 from tb_macro.inputs import load_demography, load_fertility, load_who_outcomes
 from tb_macro.demography import prepare_pop_data_for_entries
@@ -42,6 +42,13 @@ if __name__ == "__main__":
     path = OUTPUT_PATH / task
     path.mkdir(parents=True, exist_ok=True)
     logger = get_logger(path / "run.log")
+    provenance = get_git_provenance()
+    logger.info(
+        "git commit %s (dirty=%s) branch %s",
+        provenance["commit"],
+        provenance["dirty"],
+        provenance["branch"],
+    )
 
     group_popsize, death_rates, age_weights = load_demography(ISO3)
     fert_padded = load_fertility(ISO3)
@@ -112,3 +119,14 @@ if __name__ == "__main__":
         samples,
     )
     save_sampled_outputs(path / f"{timestamp}_outputs.pkl", outputs, sample_labels)
+    write_run_log(
+        path / f"{timestamp}.log",
+        extra={
+            "task": task,
+            "n_runs": n_runs,
+            "idata": f"{timestamp}.nc",
+            "outputs": f"{timestamp}_outputs.pkl",
+            "scenario_params": SCENARIO_PARAMS,
+        },
+    )
+    logger.info("Wrote %s, %s and %s", f"{timestamp}.nc", f"{timestamp}_outputs.pkl", f"{timestamp}.log")

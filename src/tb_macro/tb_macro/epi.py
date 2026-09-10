@@ -521,7 +521,7 @@ def add_flows_to_model(
         death_in_unsucc,
     )
     add_latency_flows(epi_model, disease_state, age_strat, clin_strat, infect_strat)
-    add_acf(epi_model, disease_state, START_TIME)
+    add_acf(epi_model, disease_state, age_strat, infect_strat, START_TIME)
 
 
 

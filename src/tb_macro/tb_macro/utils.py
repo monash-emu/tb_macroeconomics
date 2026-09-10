@@ -1,12 +1,14 @@
 from jax import numpy as jnp, lax
 import jax
 from collections import namedtuple
+from datetime import datetime, UTC
 import logging
+import subprocess
 import sys
 from pathlib import Path
 import pandas as pd
 
-from tb_macro.constants import START_TIME, CALENDAR_YEAR_MIDPOINT
+from tb_macro.constants import BASE_PATH, START_TIME, CALENDAR_YEAR_MIDPOINT
 
 InterpolatorScaleData = namedtuple(
     "InterpolatorScaleData", ["points", "ranges", "bounds"]
@@ -204,6 +206,60 @@ def get_logger(log_file: Path):
     root_logger.setLevel(logging.INFO)
 
     return root_logger
+
+
+def get_git_provenance(repo: Path | None = None) -> dict[str, str]:
+    """Return the current git commit, branch, and dirty flag.
+
+    Args:
+        repo: Repository root. Defaults to the project base path.
+
+    Returns:
+        Provenance fields as strings, or 'unknown' if git is unavailable.
+    """
+    repo = Path(repo) if repo is not None else BASE_PATH
+
+    def git(*args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else "unknown"
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    dirty = "unknown" if status.returncode != 0 else str(bool(status.stdout.strip())).lower()
+    return {
+        "commit": git("rev-parse", "HEAD"),
+        "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
+        "dirty": dirty,
+    }
+
+
+def write_run_log(path: Path, extra: dict | None = None) -> None:
+    """Write a small provenance log next to a saved run.
+
+    Args:
+        path: Destination log path
+        extra: Optional extra fields (output filenames, scenario params, etc.)
+    """
+    lines = [f"written: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%MZ')}"]
+    for key, value in get_git_provenance().items():
+        lines.append(f"{key}: {value}")
+    if extra:
+        for key, value in extra.items():
+            lines.append(f"{key}: {value}")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n")
 
 
 def lerp_annual_output(
