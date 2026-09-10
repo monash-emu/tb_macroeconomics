@@ -202,12 +202,12 @@ def prepare_pop_data_for_entries(
 
     Notes:
     -----
-    Entry rates are calculated as the year-to-year increments 
-    in total population, after inserting the model's 
+    Entry rates (births in addition to the death replacements,
+    which may be negative) are calculated as the year-to-year increments 
+    in total population, after additionally inserting the model's 
     starting population at the start of the simulation.
     """
     total_pop_size = group_popsize.sum(axis=1)
-    # non_dec_data = total_pop_size.cummax()
     total_pop_size[start_time] = start_pop
     non_dec_data_w_start = total_pop_size.sort_index()
     pop_increments = non_dec_data_w_start.diff()
@@ -264,15 +264,13 @@ def add_entry_births(
 
     Notes:
     -----
-    Additional births enter the _Mtb_-naive youngest age group.
-    The supplied entry rates are applied as a step function in
-    calendar time.
-
+    Births enter the youngest _Mtb_-naive age group.
+    The supplied entry rates are applied as a step function over calendar time.
     Together with replacement of background deaths, this
-    produces a population that tracks the external totals while
-    remaining fully naive at birth.
-    Note that this entry rate may reach negative values,
-    but these negative entries are then more than compensated for by 
+    produces a population that closely tracks 
+    the totals targeted, while ensuring that the population remains
+    fully infection-naive at birth.
+    Negative entries are more than compensated by 
     the death replacements as births.
     """
     birth_func = get_birth_rate_func(start_time, rates, times)
