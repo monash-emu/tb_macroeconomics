@@ -99,21 +99,21 @@ def add_natural_history(
     Notes:
     -----
     After infection is contained, people may clear infection
-    or undergo endogenous reactivation (breakdown), at the
-    "{{clearance_rate}}" and "{{breakdown_rate}}" respectively.
-
-    Among people with active TB, infectiousness may increase or
-    decrease at the "{{infectiousness_gain_rate}}" and
-    "{{infectiousness_loss_rate}}". Symptoms may develop or
-    resolve at the "{{clinical_progression_rate}}" and
+    or undergo endogenous reactivation (breakdown), according to 
+    the "{{clearance_rate}}" and "{{breakdown_rate}}" parameters, 
+    respectively. Among people with active TB, 
+    infectiousness may increase or decrease at 
+    the "{{infectiousness_gain_rate}}" and
+    "{{infectiousness_loss_rate}}", respectively.
+    Symptoms may develop or resolve at the 
+    "{{clinical_progression_rate}}" and
     "{{clinical_regression_rate}}".
-
     Subclinical disease may self-resolve at the
     "{{self_recovery_rate}}". Untreated clinical TB causes death
     at the "{{tb_mortality_rate_lowinf}}" or
-    "{{tb_mortality_rate_inf}}", according to infectiousness.
-    These deaths are replaced by _Mtb_-naive births into the
-    youngest age group.
+    "{{tb_mortality_rate_inf}}", according to infectiousness level.
+    As for background mortality, these deaths are also replaced 
+    by _Mtb_-naive births into the youngest age group.
     """
     source = disease_state["contained"]
     dest = disease_state["cleared"]
@@ -402,44 +402,41 @@ def add_latency_flows(
     Notes:
     -----
     From incipient infection, people may contain infection or
-    progress to active disease. Both rates vary by the latency
-    age bands, using the "{{containment_rate_age0}}",
+    progress to active disease. Both rates vary according to 
+    the latency age bands, using the "{{containment_rate_age0}}",
     "{{containment_rate_age5}}" and "{{containment_rate_age15}}"
-    for containment, and the "{{progression_rate_age0}}",
+    parameters for containment, and the "{{progression_rate_age0}}",
     "{{progression_rate_age5}}" and "{{progression_rate_age15}}"
-    for progression.
-
-    Progression is to subclinical disease. A fraction given by
-    the "{{progression_prop_infectious}}" enter the high
-    infectiousness stratum, and the remainder enter the low
-    infectiousness stratum.
+    parameters for progression. All progression is to subclinical disease.
+    A fraction of new disesae episodes, given by 
+    the "{{progression_prop_infectious}}", enter 
+    the high infectiousness stratum, with the remainder entering 
+    the low infectiousness stratum.
     """
+    source = disease_state["incipient"]
+    dest = disease_state["contained"]
     latency_age_adj = get_latency_age_adj(age_strat)
-
     contain_func = defer(latency_age_adj)(
         Parameter("containment_rate_age0", 0.0),
         Parameter("containment_rate_age5", 0.0),
         Parameter("containment_rate_age15", 0.0),
     )
-    source = disease_state["incipient"]
-    dest = disease_state["contained"]
     contain = TransitionFlow("containment", source, dest, contain_func)
     epi_model.add_flow(contain)
 
     def inf_prog_adj(p_inf) -> CategoryData:
         return infect_strat.categories().wrap(jnp.array([1.0 - p_inf, p_inf]))
 
+    source = disease_state["incipient"]
+    dest = clin_strat["subclin"]
+    prog = TransitionFlow("progression", source, dest, prog_func)
     prog_func = defer(latency_age_adj)(
         Parameter("progression_rate_age0", 0.0),
         Parameter("progression_rate_age5", 0.0),
         Parameter("progression_rate_age15", 0.0),
     )
-    source = disease_state["incipient"]
-    dest = clin_strat["subclin"]
-    prog = TransitionFlow("progression", source, dest, prog_func)
-    prog.adjustments_dest.append(
-        defer(inf_prog_adj)(Parameter("progression_prop_infectious", 0.0))
-    )
+    inf_prog_param = Parameter("progression_prop_infectious", 0.0)
+    prog.adjustments_dest.append(defer(inf_prog_adj)(inf_prog_param))
     epi_model.add_flow(prog)
 
 
