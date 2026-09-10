@@ -245,10 +245,9 @@ def build_age_weight_lookup(
 
     Notes:
     -----
-    Within each model age group with lower bounds {{AGE_STRATA}},
-    the population at each single year of age is expressed as a
-    share of that group's total. The last group runs
-    to {{MAX_AGE}}.
+    Within each model age group, the population at each single year of age 
+    is expressed as a share of that group's total. The last group runs
+    to {{MAX_AGE}} for the purposes of weight calculations.
     """
     wide_single_age = single_age.pivot(index="Time", columns="Age", values="Pop")
     weights = pd.DataFrame(index=wide_single_age.index, columns=wide_single_age.columns)
@@ -275,9 +274,9 @@ def get_fertility_data(
 
     Notes:
     -----
-    UN age-specific fertility rates are normalised so that they
-    sum to one across maternal ages in each year.
-    This provides the distribution of maternal ages at birth.
+    Age-specific fertility rates obtained from the UN were normalised 
+    such that they sum to one over maternal ages in each modelled year.
+    This provides the evolving distribution of maternal ages at birth.
     """
     filename = f"un_fertility_20260506T0219Z.csv"
     raw_data = pd.read_csv(DATA_PATH / "population" / filename)

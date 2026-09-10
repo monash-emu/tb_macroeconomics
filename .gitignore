@@ -219,5 +219,6 @@ outputs/*
 notebooks/*.html
 notebooks/*.pdf
 notebooks/*.tex
+notebooks/*.toc
 notebooks/*.aux
 notebooks/*_files/

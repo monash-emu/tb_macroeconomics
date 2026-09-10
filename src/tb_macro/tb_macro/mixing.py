@@ -46,35 +46,34 @@ def build_s_matrix_single_age(
 
     Notes:
     -----
-    The single-age mixing kernel is the sum of three components
-    and does not depend on population size. It covers single years
-    of age from 0 to {{MAX_AGE}}.
-
-    Background mixing is a constant "{{bg_mixing}}" added to
-    every age pair.
-
-    Assortative mixing decays exponentially with the difference
-    in age, as $(1/a)\exp(-|i-j|/a)$, where $a$ is the
-    "{{a_spread}}".
-
-    Parent-child mixing is the "{{pc_strength}}" multiplied by
-    fertility at the younger person's year of birth, indexed by
-    the age gap (the implied age of the parent at that birth).
+    The single-age mixing kernel or "S" matrix is 
+    the sum of three components and is independent of population size.
+    It is calculated in single years of age from 0 to {{MAX_AGE}}.
+    To populate this matrix, background mixing is first added as 
+    a constant value to every age pair, using the parameter "{{bg_mixing}}".
+    Assortative mixing between closer ages is then added as a function that
+    decays exponentially with the difference
+    in age between each pair of groups, as $(1/a)\exp(-|i-j|/a)$, 
+    where $a$ is the "{{a_spread}}" parameter.
+    Last, parent-child mixing is added by multiplying 
+    the "{{pc_strength}}" parameter by fertility at 
+    the younger person's year of birth, indexed by the age gap 
+    (that is, the implied age of the parent at that birth).
     """
     ages = jnp.arange(MAX_AGE + 1)
 
-    # Assortative component: depends on age difference only
+    # Assortative component - depends on age difference only
     age_diff_mat = jnp.abs(ages[:, None] - ages[None, :])
     assort_mat = (1.0 / a_spread) * jnp.exp(-age_diff_mat / a_spread)
 
-    # Child-parent component: depends on fertility and age gap
+    # Child-parent component - depends on fertility and age difference
     age_gap_mat = jnp.abs(ages[:, None] - ages[None, :]).astype(jnp.int32)
     child_age_mat = jnp.minimum(ages[:, None], ages[None, :])
     child_birth_years = time - child_age_mat
     clamped_birth_years = get_year_index(fert_ends, child_birth_years)
     child_parent_mat = pc_strength * fert[clamped_birth_years, age_gap_mat]
 
-    # Combine components (weights applied later)
+    # Combine the three components
     return bg_mixing + assort_mat + child_parent_mat
 
 
