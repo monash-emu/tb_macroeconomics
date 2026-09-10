@@ -4,7 +4,7 @@ from summer3.graph import Parameter, Time, defer
 from summer3.epi import CompartmentalEpiModel, Stratification, TransitionFlow
 
 from tb_macro.constants import AGE_STRATA, ACF_MIN_AGE
-from tb_macro.utils import get_four_element_multicurve
+from tb_macro.utils import get_scale_data, get_cos_multicurve
 
 
 def get_acf_screen_rate(coverage):
@@ -58,11 +58,11 @@ def add_acf(
     smear-negative estimate, applied only to the bacteriologically
     detectable fraction of that stratum.
 
-    The rate is zero until the "{{acf_start}}", rises over
-    the course of "{{acf_scaling_time}}" years
-    to its peak rate as defined above,
-    remains at the peak for the "{{acf_duration}}",
-    and then returns to zero.
+    The rate is zero until the "{{acf_start}}", then follows a
+    cosine-smoothed scale-up over "{{acf_scaling_time}}" years
+    to its peak rate as defined above, remains at the peak
+    through the "{{acf_duration}}", and cosine-smooths back to
+    zero over a further "{{acf_scaling_time}}" years.
     """
     peak_screen_rate = defer(get_acf_screen_rate)(
         Parameter("acf_coverage", 0.0),
@@ -70,16 +70,26 @@ def add_acf(
 
     sim_time = Time + start_time
 
-    screen_func = defer(get_four_element_multicurve)(
+    def acf_screen_curve(t, t_start, scale_time, duration, peak_rate):
+        times = get_scale_data(
+            jnp.array(
+                [
+                    t_start,
+                    t_start + scale_time,
+                    t_start + duration,
+                    t_start + duration + scale_time,
+                ]
+            )
+        )
+        vals = get_scale_data(jnp.array([0.0, peak_rate, peak_rate, 0.0]))
+        return get_cos_multicurve(t, times, vals)
+
+    screen_func = defer(acf_screen_curve)(
         sim_time,
         Parameter("acf_start", 0.0),
-        0.0,
-        Parameter("acf_start", 0.0) + Parameter("acf_scaling_time", 0.0),
+        Parameter("acf_scaling_time", 0.0),
+        Parameter("acf_duration", 0.0),
         peak_screen_rate,
-        Parameter("acf_start", 0.0) + Parameter("acf_duration", 0.0),
-        peak_screen_rate,
-        Parameter("acf_start", 0.0) + Parameter("acf_duration", 0.0) + Parameter("acf_scaling_time", 0.0),
-        0.0,
     )
 
     def acf_infect_rates(screen_rate, s_low, s_high, prop_bactpos):

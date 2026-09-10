@@ -9,7 +9,7 @@ from summer3.epi import (
 )
 from summer3.graph import defer, Time, Parameter
 
-from tb_macro.utils import get_scale_data, get_cos_multicurve, get_six_element_multicurve
+from tb_macro.utils import get_scale_data, get_cos_multicurve
 from tb_macro.demography import make_multi_interp_array_func
 
 
@@ -50,19 +50,23 @@ def add_detection(
     detect_rate_2022 = detect_rate_2020
 
     sim_time = Time + start_time
-    detect_func = defer(get_six_element_multicurve)(
+
+    def detect_curve(t, r1957, r1986, r2007, r2020, r2021, r2022):
+        times = get_scale_data(
+            jnp.array([1957.0, 1986.0, 2007.0, 2020.0, 2021.0, 2022.0])
+        )
+        vals = get_scale_data(
+            jnp.array([r1957, r1986, r2007, r2020, r2021, r2022])
+        )
+        return get_cos_multicurve(t, times, vals)
+
+    detect_func = defer(detect_curve)(
         sim_time,
-        1957.0,
         detect_rate_1957,
-        1986.0,
         detect_rate_1986,
-        2007.0,
         detect_rate_2007,
-        2020.0,
         detect_rate_2020,
-        2021.0,
         detect_rate_2021,
-        2022.0,
         detect_rate_2022,
     )
 
