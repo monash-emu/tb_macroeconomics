@@ -106,10 +106,9 @@ def add_replacement_deaths(
     Notes:
     -----
     Background (non-TB-related) mortality is applied as 
-    an age-specific per capita rate, 
+    age-specific per capita rates, 
     interpolated over calendar time from the
-    death rates provided.
-
+    death rates calculated.
     Each death is immediately replaced by a birth into the
     _Mtb_-naive youngest age group. This keeps background
     mortality from affecting the population size,
@@ -144,7 +143,7 @@ def add_ageing_flows(
     constant rate equal to the reciprocal of the with of the group 
     they are exiting in years, such that the mean time spent in 
     each age group matches its width. The oldest group has 
-    no ageing outflow. Exit from this group occurs only through death.
+    no ageing outflow; exit from this group occurs only through death.
     """
     for a in range(len(AGE_STRATA) - 1):
         lower = AGE_STRATA[a]
@@ -168,17 +167,17 @@ def inflate_oldest_death_rates(death_rates: pd.DataFrame) -> pd.DataFrame:
 
     Notes:
     -----
-    The death rate in the oldest age group is multiplied by
-    {{TOP_AGE_BRACKET_INFLATION}}. In reality the hazard of death
-    rises with age, so the population in this open-ended group is
+    In reality the hazard of death rises with age, 
+    so the population in this open-ended group is
     concentrated at its younger end, with only a thin tail at the
-    oldest ages. The rate taken from the data is the average
-    hazard weighted by that distribution.
-
-    The model applies a single constant hazard to the whole group,
+    oldest ages. The unadjusted rate taken from the data is 
+    therefore the average hazard weighted by that distribution.
+    By contrast, our model applies a single constant hazard to the whole group,
     which implies exponential attrition and a heavier old-age tail.
     Without inflation, too many people remain in this group relative
     to the reported age distribution.
+    To address these issues, the death rate in the oldest age group 
+    was multiplied by {{TOP_AGE_BRACKET_INFLATION}}. 
     """
     death_rates = death_rates.copy()
     death_rates[AGE_STRATA[-1]] *= TOP_AGE_BRACKET_INFLATION

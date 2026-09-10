@@ -46,7 +46,8 @@ def get_single_age_pop_from_ungroups(
     UN age-group counts are recorded in thousands and are 
     distributed uniformly across the single years of age 
     contained by each group before further processing 
-    (with open-ended groups extended to {{MAX_AGE}} years).
+    to modelled age brackets (with open-ended groups extended 
+    to {{MAX_AGE}} years).
     """
     single_rows = []
     for _, r in data.iterrows():
@@ -123,8 +124,9 @@ def get_un_mortality(
     Notes:
     -----
     UN death counts are recorded in thousands and are aggregated
-    to the model age groups with lower bounds {{AGE_STRATA}}.
-    The last group is open-ended up to {{MAX_AGE}}.
+    to our modelled age groups (with lower bounds {{AGE_STRATA}}).
+    For the purposes of mortality calculations, the last group is 
+    considered to include persons aged up to {{MAX_AGE}} years.
     """
     mort_data = pd.read_csv(DATA_PATH / "population/un_mortality_20260506T0212Z.csv")
     relevant_cols = ["Time", "AgeGrp", "DeathTotal"]
@@ -444,8 +446,8 @@ def load_demography(
     Notes:
     -----
     Age-specific background mortality is calculated from 
-    the number of deaths divided by the population 
-    in each model age group, reported by the UN.
+    the total number of reported deaths divided by the population 
+    size of each model age group.
     """
     pop_data = get_country_pop(iso3)
     single_age_pops = get_single_age_pop_from_ungroups(pop_data)
