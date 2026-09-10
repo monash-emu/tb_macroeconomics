@@ -178,12 +178,11 @@ def infect_process(
     clinical_cats: CategoryGroup,
     transmission_rate: float,
     age_breaks: jnp.array,
-    young_end_age: int,
     rel_infect_lowinf: float,
     rel_infect_subclin: float,
     mm_dynamic,
 ):
-    """Compute the age-specific force of infection.
+    r"""Compute the age-specific force of infection.
     Uses compartment values, age structure, mixing and clinical/infectiousness
     modifiers to compute age-stratified force of infection.
 
@@ -195,7 +194,6 @@ def infect_process(
         clinical_cats: Category group for clinical strata
         transmission_rate: Base contact rate multiplier
         age_breaks: Age values used to determine young-age stratification
-        young_end_age: Maximum age that does not contribute to transmission
         rel_infect_lowinf: Relative infectiousness for low-infectious cases
         rel_infect_subclin: Relative infectiousness for subclinical cases
         mm_dynamic: Function that builds a mixing matrix at a given time
@@ -205,18 +203,17 @@ def infect_process(
 
     Notes:
     -----
-    The force of infection is age-specific. Age groups whose
-    lower bound is below the young-age cutoff do not contribute
-    to transmission. Each infectious person is weighted by the
-    "{{rel_infectiousness_lowinf}}" if in the low infectiousness
-    stratum, and by the "{{rel_infectiousness_subclin}}" if
-    subclinical. The resulting age-specific infectious pressure
-    is applied through the mixing matrix.
+    Age groups whose lower bound is below the young-age cutoff 
+    of {{YOUNG_END_AGE}} do not contribute to transmission. 
+    Each infectious person's contribution to the force of infection
+    is weighted by the "{{rel_infectiousness_lowinf}}" if in 
+    the low infectiousness stratum, and by the 
+    "{{rel_infectiousness_subclin}}" if subclinical. 
     """
     infectee_cats = age_cats
     infect_pop_cats = age_cats.product(infectious_compartments)
 
-    age_infect = jnp.where(age_breaks < young_end_age, 0.0, 1.0)
+    age_infect = jnp.where(age_breaks < YOUNG_END_AGE, 0.0, 1.0)
 
     infectivity_modifier = infectivity_cats.wrap(jnp.array([rel_infect_lowinf, 1.0]))
     effective_values = mul_ma_catdata(compartment_values, infectivity_modifier, True)
@@ -241,7 +238,6 @@ def add_infection_flows(
     age_weights: jnp.array,
     group_popsize: jnp.array,
     fert_padded: jnp.array,
-    young_end_age: float,
     start_time: float,
 ):
     """Add infection flows to the model.
@@ -258,32 +254,28 @@ def add_infection_flows(
         age_weights: The age weights for the mixing matrix
         group_popsize: The population sizes for the mixing matrix
         fert_padded: The fertility data for the mixing matrix
-        young_end_age: The age below which people do not transmit,
-            and never-infected children have reduced susceptibility
         start_time: Run start time
 
     Notes:
     -----
     Infection moves people from each of the susceptible states
-    {{INFECT_COMPS}} into incipient infection.
-
+    ({{INFECT_COMPS}}) into incipient infection.
     The force of infection is scaled by the
-    "{{raw_transmission_rate}}" and by a relative susceptibility
-    that depends on the source state: "{{rel_sus_mtb_naive}}"
+    "{{raw_transmission_rate}}" parameter and by 
+    a relative susceptibility that depends on 
+    the source state: "{{rel_sus_mtb_naive}}"
     for the never-infected, "{{rel_sus_contained}}" for
     contained infection, and "{{rel_sus_cleared}}" for both
     cleared and recovered infection.
-    Never-infected children have susceptibility further
+    Never-infected children have their susceptibility further
     reduced by the "{{rel_sus_children}}" parameter.
-    This modifier is not applied to reinfection from 
+    This age-specific modifier is not applied to reinfection from 
     contained, cleared or recovered infection, 
     because previous infection or disease is assumed to 
-    override any effect of BCG.
-    A time-varying mixing matrix is built from the
-    "{{bg_mixing}}", "{{a_spread}}" and "{{pc_strength}}"
-    parameters.
+    override any effect of BCG. A time-varying age-structured 
+    mixing matrix is built from the "{{bg_mixing}}", 
+    "{{a_spread}}" and "{{pc_strength}}" parameters.
     """
-
     dynamic_mm = defer(get_norm_c_matrix)(
         jnp.array(age_weights),
         jnp.array(age_weights.index[[0, -1]]),
@@ -298,7 +290,7 @@ def add_infection_flows(
     ).set_name("dynamic_mm")
 
     def child_sus_adj(rel_sus_children) -> CategoryData:
-        age_suscept = jnp.where(jnp.array(AGE_STRATA) < young_end_age, rel_sus_children, 1.0)
+        age_suscept = jnp.where(jnp.array(AGE_STRATA) < YOUNG_END_AGE, rel_sus_children, 1.0)
         return age_strat.categories().wrap(age_suscept)
 
     for comp in INFECT_COMPS:
@@ -313,7 +305,6 @@ def add_infection_flows(
             clin_strat.categories(),
             scaled_contact_rate,
             jnp.array(AGE_STRATA),
-            young_end_age,
             Parameter("rel_infectiousness_lowinf", 0.0),
             Parameter("rel_infectiousness_subclin", 0.0),
             dynamic_mm,
@@ -344,9 +335,10 @@ def add_seeding(
 
     Notes:
     -----
-    Infection is seeded from the _Mtb_-naive compartment into
-    incipient infection with a triangular pulse. The pulse peaks
-    at the "{{seed_peak_time}}" at a rate of "{{seed_peak_rate}}",
+    Infection is seeded by transitioning people from 
+    the _Mtb_-naive compartment into incipient infection 
+    with a triangular pulse. The pulse peaks at the 
+    "{{seed_peak_time}}" at a rate of "{{seed_peak_rate}}",
     with width "{{seed_duration}}".
     """
     peak_time = Parameter("seed_peak_time", 0.0)
@@ -492,7 +484,6 @@ def add_flows_to_model(
         age_weights,
         group_popsize,
         fert_padded,
-        YOUNG_END_AGE,
         START_TIME,
     )
     add_natural_history(epi_model, disease_state, age_strat, clin_strat, infect_strat)
