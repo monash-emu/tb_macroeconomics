@@ -48,17 +48,21 @@ def build_s_matrix_single_age(
     -----
     The single-age mixing kernel or "S" matrix is 
     the sum of three components and is independent of population size.
+    That is, it represents the frequency of contact between two 
+    specific individuals from the two nominated age groups come into contact.
     It is calculated in single years of age from 0 to {{MAX_AGE}}.
     To populate this matrix, background mixing is first added as 
-    a constant value to every age pair, using the parameter "{{bg_mixing}}".
+    a constant value to every age group pair, using the parameter "{{bg_mixing}}".
     Assortative mixing between closer ages is then added as a function that
-    decays exponentially with the difference
+    decays exponentially with increasing difference
     in age between each pair of groups, as $(1/a)\exp(-|i-j|/a)$, 
     where $a$ is the "{{a_spread}}" parameter.
     Last, parent-child mixing is added by multiplying 
     the "{{pc_strength}}" parameter by fertility at 
     the younger person's year of birth, indexed by the age gap 
     (that is, the implied age of the parent at that birth).
+    As such, this mixing kernel changes over time throughout
+    the simulation according to fertility data inputs.
     """
     ages = jnp.arange(MAX_AGE + 1)
 
@@ -100,10 +104,8 @@ def get_full_normalised_within_age_band_weights(
 
     Notes:
     -----
-    Each model age group with lower bounds {{AGE_STRATA}} is
-    represented as a distribution over single years of age,
-    using the supplied within-group weights, with the last
-    group running to {{MAX_AGE}}.
+    Each modelled age group is represented as a distribution over 
+    single years of age, using the within-group weights.
     """
     w_group = jnp.zeros((len(AGE_STRATA), MAX_AGE + 1))
     for a, lower in enumerate(AGE_STRATA):
@@ -140,11 +142,10 @@ def aggregate_full_matrix_to_groups(
 
     Notes:
     -----
-    The group-level kernel is obtained by projecting the
-    single-age kernel through these within-group age
-    distributions. Each entry is the expected mixing intensity
-    between a random person from one age group and a random
-    person from another.
+    The group-level kernel is obtained by aggregating the
+    single-age kernel using these within-group age distributions. 
+    Each cell value represents the mixing intensity
+    between an individual from one age group and one from the other.
     """
     w_group = get_full_normalised_within_age_band_weights(current_weights)
     return w_group @ full_kernel @ w_group.T

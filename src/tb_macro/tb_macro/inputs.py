@@ -245,9 +245,9 @@ def build_age_weight_lookup(
 
     Notes:
     -----
-    Within each model age group, the population at each single year of age 
+    Within each modelled age group, the population at each single year of age 
     is expressed as a share of that group's total. The last group runs
-    to {{MAX_AGE}} for the purposes of weight calculations.
+    to {{MAX_AGE}} for the purposes of this aggregation calculation.
     """
     wide_single_age = single_age.pivot(index="Time", columns="Age", values="Pop")
     weights = pd.DataFrame(index=wide_single_age.index, columns=wide_single_age.columns)
