@@ -245,8 +245,8 @@ def build_age_weight_lookup(
 
     Notes:
     -----
-    Within each modelled age group, the population at each single year of age 
-    is expressed as a share of that group's total. The last group runs
+    Within each modelled age group, the population of each single year of age 
+    is expressed as a share of the group's total. The last group runs
     to {{MAX_AGE}} for the purposes of this aggregation calculation.
     """
     wide_single_age = single_age.pivot(index="Time", columns="Age", values="Pop")
@@ -275,7 +275,7 @@ def get_fertility_data(
     Notes:
     -----
     Age-specific fertility rates obtained from the UN were normalised 
-    such that they sum to one over maternal ages in each modelled year.
+    such that they sum to one over maternal ages for each modelled year.
     This provides the evolving distribution of maternal ages at birth.
     """
     filename = f"un_fertility_20260506T0219Z.csv"
@@ -472,8 +472,8 @@ def load_fertility(
 
     Notes:
     -----
-    Ages without fertility data are filled with zeroes, covering
-    single years of age from 0 to {{MAX_AGE}}.
+    Ages without fertility data are filled with zeroes,
+    to ensure coverage of all single years of age from 0 to {{MAX_AGE}}.
     """
     fert = get_fertility_data(iso3)
     return fert.reindex(columns=range(MAX_AGE + 1), fill_value=0.0)

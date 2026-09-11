@@ -46,23 +46,25 @@ def build_s_matrix_single_age(
 
     Notes:
     -----
-    The single-age mixing kernel or "S" matrix is 
-    the sum of three components and is independent of population size.
-    That is, it represents the frequency of contact between two 
-    specific individuals from the two nominated age groups come into contact.
+    The single-age mixing kernel is the sum of three components and 
+    is independent of population size. That is, it represents 
+    the frequency of contact between two specific individuals 
+    from each of the two nominated age groups come into contact.
     It is calculated in single years of age from 0 to {{MAX_AGE}}.
     To populate this matrix, background mixing is first added as 
     a constant value to every age group pair, using the parameter "{{bg_mixing}}".
     Assortative mixing between closer ages is then added as a function that
     decays exponentially with increasing difference
-    in age between each pair of groups, as $(1/a)\exp(-|i-j|/a)$, 
-    where $a$ is the "{{a_spread}}" parameter.
+    in age between each pair of groups ($i$ and $j$), as 
+    $(1/a)\exp(-|i-j|/a)$, where $a$ is the "{{a_spread}}" parameter.
     Last, parent-child mixing is added by multiplying 
     the "{{pc_strength}}" parameter by fertility at 
     the younger person's year of birth, indexed by the age gap 
     (that is, the implied age of the parent at that birth).
     As such, this mixing kernel changes over time throughout
     the simulation according to fertility data inputs.
+    Further, the relative strength of each fo the three
+    contributions to mixing are adjusted at each calibration iteration.
     """
     ages = jnp.arange(MAX_AGE + 1)
 
@@ -101,11 +103,6 @@ def get_full_normalised_within_age_band_weights(
 
     Returns:
         The weight matrix
-
-    Notes:
-    -----
-    Each modelled age group is represented as a distribution over 
-    single years of age, using the within-group weights.
     """
     w_group = jnp.zeros((len(AGE_STRATA), MAX_AGE + 1))
     for a, lower in enumerate(AGE_STRATA):
@@ -144,7 +141,7 @@ def aggregate_full_matrix_to_groups(
     -----
     The group-level kernel is obtained by aggregating the
     single-age kernel using these within-group age distributions. 
-    Each cell value represents the mixing intensity
+    Each cell value of the resulting matrix represents the mixing intensity
     between an individual from one age group and one from the other.
     """
     w_group = get_full_normalised_within_age_band_weights(current_weights)
@@ -183,13 +180,6 @@ def build_s_matrix(
 
     Returns:
         The s_matrix matrix (n_groups x n_groups)
-
-    Notes:
-    -----
-    Within-group age weights at the current year are used to
-    aggregate the single-age kernel to the modelled age groups.
-    The resulting matrix is a per pair of individuals intensity and 
-    so does not yet incorporate population size.
     """
     year_idx = get_year_index(weight_ends, time)
     current_weights = weights[year_idx, :]
@@ -240,9 +230,13 @@ def build_c_matrix(
 
     Notes:
     -----
-    Each column of the group-level kernel is multiplied by the
-    population of that (infecting) age group, converting per pair of individuals
+    Each column of the group-level kernel is multiplied by the population of 
+    that (i.e. the infecting) age group, converting the per pair of individuals
     intensities into population-scaled contact rates.
+    The resulting matrix contains values represents the rate at which
+    a person from the age group represented by each row of the matrix
+    comes into contact with _any_ person from the age group represented by
+    the column.
     """
     year_idx = get_year_index(pop_ends, time)
     pops = pops[year_idx, :]
@@ -292,7 +286,7 @@ def get_norm_c_matrix(
     spectral radius, such that the dominant eigenvalue is one.
     This allows the intensity of transmission to be controlled through
     other parameters, such that the mixing matrix construction controls
-    only the relative intensity of transmission between age groups.
+    the relative intensity of transmission between age groups.
     """
     c_matrix = build_c_matrix(
         weights,
