@@ -19,7 +19,7 @@ def add_detection(
     clin_strat: Stratification,
     start_time: float,
 ):
-    """Add the process of disease detection to the model.
+    r"""Add the process of disease detection to the model.
 
     Args:
         epi_model: The epidemiological model to add the flows to
@@ -29,18 +29,17 @@ def add_detection(
 
     Notes:
     -----
-    Routine detection moves people with clinical active TB into
-    treatment. Subclinical disease is not detected by this
-    process.
-
-    The rate of detection remains zero until 1957 
-    and then follows a cosine-smoothed
-    scale-up through 1986 and 2007 to the "{{detect_rate_current}}"
-    in 2020. The 2007 rate is the current rate multiplied by the
-    "{{rel_detect_2007}}", and the 1986 rate is that 2007 rate
-    multiplied by the "{{rel_detect_1986}}".
-    Detection then falls in 2021 to the current rate multiplied by the
-    "{{rel_detect_2021}}", and returns to the current rate in 2022.
+    Passive case detection moves people with clinical active TB onto
+    treatment. Only clinical disease is detected by this process,
+    with subclinical disease not affected.
+    The rate of detection remains zero until 1957 and then 
+    follows a cosine-smoothed scale-up through 1986 and 2007 
+    to the "{{detect_rate_current}}" in 2020. The 2007 rate is 
+    the current rate multiplied by the "{{rel_detect_2007}}" parameter, 
+    and the 1986 rate is that 2007 rate multiplied by the "{{rel_detect_1986}}".
+    To account for the effects of the COVID-19 pandemic, 
+    detection falls in 2021 to the {{detect_rate_current}} multiplied by the
+    "{{rel_detect_2021}}" parameter, before returning to the current rate in 2022.
     """
     detect_rate_2020 = Parameter("detect_rate_current", 0.0)
     detect_rate_2007 = detect_rate_2020 * Parameter("rel_detect_2007", 0.0)
@@ -96,20 +95,19 @@ def compute_outcome_props(
     Notes:
     -----
     The probability of background death during a course of
-    treatment is $1 - \exp(-\delta \mu)$, where $\delta$ is the
-    "{{rx_duration}}" and $\mu$ is the age-specific background
-    mortality rate.
-
-    The remaining outcomes are split using the treatment success
+    treatment was calculated as $1 - \exp(-\delta \mu)$, 
+    where $\delta$ is the "{{rx_duration}}" parameter and $\mu$ is 
+    the age-specific background mortality rate. The remaining 
+    proportion was split according to the treatment success
     rate and the proportion of unsuccessful outcomes that are
     deaths. Background deaths already counted are subtracted from
-    that death target, so that only the additional deaths 
+    the death proportion, such that only the additional deaths 
     during treatment in excess of background mortality
     are attributed to the TB-related mortality transition.
-    Whatever is left of the unsuccessful fraction 
-    after these deaths is considered as relapse.
-    Success is calculated as the complement of 
-    treatment-related death and relapse.
+    The remaining proportion of the unsuccessful fraction 
+    after treatment-related deaths have been subtracted 
+    was considered as relapse. Treatment success was calculated as 
+    the complement of treatment-related death plus relapse.
     """
     prop_nat_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rate)
     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
@@ -178,16 +176,13 @@ def add_treatment_flows(
 
     Notes:
     -----
-    People on treatment leave to one of three outcomes, with
-    rates obtained from the treatment success rate, the
-    proportion of unsuccessful outcomes that are deaths, and
-    background mortality, all interpolated over calendar time.
-    The "{{rx_duration}}" sets the time scale of these rates.
-
-    Success returns people to the recovered compartment.
+    People on treatment leave the treatment compartment through one of 
+    the three possible outcomes (success, relapse and death), 
+    with the scaling rates interpolated over calendar time.
+    Treatment success returns people to the recovered compartment.
     Relapse returns them to subclinical, low-infectious active TB.
-    Each death during treatment is replaced by an _Mtb_-naive birth 
-    into the youngest age group.
+    As for non-TB-related deaths, each death during treatment is 
+    replaced by an _Mtb_-naive birth into the youngest age group.
     """
 
     # TSR calculations

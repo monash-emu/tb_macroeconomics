@@ -324,10 +324,11 @@ def calc_tsr_from_outcomes(
     Notes:
     -----
     We calculated treatment outcome rates directly from 
-    the raw counts of outcomes provided by WHO.
-    Treatment success is the number cured or completing treatment,
+    the raw counts provided by WHO. Treatment success 
+    is calculated as the number cured or completing treatment,
     pooled across new, retreatment and MDR cohorts, divided by
-    the size of those cohorts. Times are offset by
+    the size of those cohorts. Because data pertain to annual cohorts
+    of persons underoing treatment, times are offset by
     {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year.
     """
     num_cols = [
@@ -375,8 +376,7 @@ def calc_death_in_unsucc_outcomes(
     The proportion of unsuccessful outcomes resulting in death 
     is calculated as deaths divided by deaths plus failure, default and 
     loss to follow-up, pooled across the same cohorts as for
-    the treatment success calculations. Times are offset by 
-    {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year.
+    the treatment success calculations.
     """
     num_cols = [
         "new_sp_died",

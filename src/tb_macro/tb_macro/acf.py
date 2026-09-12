@@ -38,30 +38,30 @@ def add_acf(
 
     Notes:
     -----
-    Active case finding screens people with active TB aged
+    Active case finding screens is assumed to screen all people aged
     "{{ACF_MIN_AGE}}" years and over, and transitions detected
-    cases into treatment. Unlike routine detection, this
+    TB cases onto treatment. Unlike routine detection, this
     includes subclinical disease.
 
     The peak screening rate is $-\ln(1 - c)$, where $c$ is
-    "{{acf_coverage}}". This converts annual coverage into a
+    the "{{acf_coverage}}" parameter. This converts annual coverage into a
     hazard over time. Detection then scales that rate by a
     stratum-specific Xpert Ultra sensitivity: "{{acf_sensitivity_high}}"
-    in the high infectiousness stratum, and "{{acf_sensitivity_low}}"
-    in the low infectiousness stratum. The low-infectious rate is
-    further multiplied by the "{{prop_lowinf_bactpos}}".
-
+    for the high infectiousness stratum and "{{acf_sensitivity_low}}"
+    for the low infectiousness stratum. The low-infectious rate is
+    further multiplied by the "{{prop_lowinf_bactpos}}" to account for 
+    TB cases that are extrapulmonary or otherwise not detectable.
     These sensitivities are taken from Zifodya et al. (Cochrane
     Database of Systematic Reviews, 2021) on Xpert Ultra for
-    pulmonary TB in adults. The high-infectious value is the
-    smear-positive estimate; the low-infectious value is the
-    smear-negative estimate, applied only to the bacteriologically
-    detectable fraction of that stratum.
+    pulmonary TB in adults; the high-infectious value is the
+    smear-positive estimate and the low-infectious value is the
+    smear-negative estimate (applied to the bacteriologically
+    detectable fraction of that stratum).
 
-    The rate is zero until the "{{acf_start}}", then follows a
+    The rate is zero until the "{{acf_start}}" time, then follows a
     cosine-smoothed scale-up over "{{acf_scaling_time}}" years
-    to its peak rate as defined above, remains at the peak
-    through the "{{acf_duration}}", and cosine-smooths back to
+    to its peak rate as defined above. It then remains at this peak value
+    throughout the "{{acf_duration}}" period, and declines back to
     zero over a further "{{acf_scaling_time}}" years.
     """
     peak_screen_rate = defer(get_acf_screen_rate)(
