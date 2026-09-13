@@ -38,8 +38,8 @@ def add_acf(
 
     Notes:
     -----
-    Active case finding screens is assumed to screen all people aged
-    "{{ACF_MIN_AGE}}" years and over, and transitions detected
+    Active case finding screens all people aged
+    {{ACF_MIN_AGE}} years and over, and transitions detected
     TB cases onto treatment. Unlike routine detection, this
     includes subclinical disease.
 
@@ -63,6 +63,8 @@ def add_acf(
     to its peak rate as defined above. It then remains at this peak value
     throughout the "{{acf_duration}}" period, and declines back to
     zero over a further "{{acf_scaling_time}}" years.
+    (Note that the active case finding rate remains zero throughout
+    the calibration period.)
     """
     peak_screen_rate = defer(get_acf_screen_rate)(
         Parameter("acf_coverage", 0.0),

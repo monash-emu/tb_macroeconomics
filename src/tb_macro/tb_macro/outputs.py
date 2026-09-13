@@ -84,7 +84,7 @@ def get_age_inc(results, age_strat, disease_state, clin_strat, infect_strat):
 
     Notes:
     -----
-    Incidence is the calculated as the total number of persons 
+    Incidence is calculated as the total number of persons 
     progressing from incipient infection to active disease.
     """
     return results["flows"]["progression"].sumcats(source=age_strat.categories())
@@ -171,7 +171,7 @@ def get_age_deaths(results, age_strat, disease_state, clin_strat, infect_strat):
 
     Notes:
     -----
-    TB-related deaths are caculated from both TB natural mortality
+    TB-related deaths are calculated from both TB natural mortality
     prior to detection, along with treatment-related deaths.
     """
     community_death_age = results["flows"]["tb_mortality"].sumcats(source=age_strat.categories())

@@ -48,7 +48,7 @@ def build_s_matrix_single_age(
     -----
     The single-age mixing kernel is the sum of three components and 
     is independent of population size. That is, it represents 
-    the frequency of contact between two specific individuals 
+    the frequency at which two specific individuals 
     from each of the two nominated age groups come into contact.
     It is calculated in single years of age from 0 to {{MAX_AGE}}.
     To populate this matrix, background mixing is first added as 
@@ -63,7 +63,7 @@ def build_s_matrix_single_age(
     (that is, the implied age of the parent at that birth).
     As such, this mixing kernel changes over time throughout
     the simulation according to fertility data inputs.
-    Further, the relative strength of each fo the three
+    Further, the relative strength of each of the three
     contributions to mixing are adjusted at each calibration iteration.
     """
     ages = jnp.arange(MAX_AGE + 1)
@@ -233,7 +233,7 @@ def build_c_matrix(
     Each column of the group-level kernel is multiplied by the population of 
     that (i.e. the infecting) age group, converting the per pair of individuals
     intensities into population-scaled contact rates.
-    The resulting matrix contains values represents the rate at which
+    The resulting matrix contains values representing the rate at which
     a person from the age group represented by each row of the matrix
     comes into contact with _any_ person from the age group represented by
     the column.

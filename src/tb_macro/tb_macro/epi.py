@@ -408,7 +408,7 @@ def add_latency_flows(
     parameters for containment, and the "{{progression_rate_age0}}",
     "{{progression_rate_age5}}" and "{{progression_rate_age15}}"
     parameters for progression. All progression is to subclinical disease.
-    A fraction of new disesae episodes, given by 
+    A fraction of new disease episodes, given by 
     the "{{progression_prop_infectious}}", enter 
     the high infectiousness stratum, with the remainder entering 
     the low infectiousness stratum.
