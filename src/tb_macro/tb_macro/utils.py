@@ -224,7 +224,7 @@ def write_run_log(path: Path, extra: dict | None = None) -> None:
     path.write_text("\n".join(lines) + "\n")
 
 
-def lerp_annual_output(
+def interp_annual_output(
     y, 
     query_times, 
     start_time: float = START_TIME,

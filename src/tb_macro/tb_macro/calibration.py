@@ -24,7 +24,7 @@ from tb_macro.targets import (
     PREV_DECLINE_TARGET,
 )
 from tb_macro.parameters import BASE_PARAMS
-from tb_macro.utils import lerp_annual_output
+from tb_macro.utils import interp_annual_output
 from tb_macro.mixing import canberra_distance, get_norm_c_matrix
 from tb_macro.inputs import get_norm_conmat
 
@@ -94,20 +94,21 @@ def get_latent_log_likelihood(
     The proportion of adults ever infected with _Mtb_ was compared
     against the interferon-gamma release assay survey of people aged
     {{YOUNG_END_AGE}} years and over reported by Marks et al.
-    (International Journal of Tuberculosis and Lung Disease).
+    (_International Journal of Tuberculosis and Lung Disease_).
 
-    The modelled equivalent is everyone not previously infected with 
-    _Mtb_, which is represented by all modelled compartments other than
-    _Mtb_-naive. That is, the {{INFECTED_STATES}} states among adults,
+    The corresponding modelled quantity is everyone not previously 
+    infected with _Mtb_, which is represented by 
+    all modelled compartments other than _Mtb_-naive. 
+    That is, the {{INFECTED_STATES}} states among adults,
     divided by the adult population at the time of the survey.
 
-    Being a proportion, this quantity was compared on the log-odds scale with
-    a standard deviation of {{PROP_LOGIT_SD}}.
+    As for other proportion targets, this quantity was compared on 
+    the log-odds scale, with a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = LATENT_TARGET.index[0]
     target_val = LATENT_TARGET.iloc[0] / 1e2
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    latent = lerp_annual_output(
+    latent = interp_annual_output(
         results["compartments"]
         .query(compartment=(disease_state[INFECTED_STATES], adult_ages))
         .sum(to_dims="time")
@@ -115,7 +116,7 @@ def get_latent_log_likelihood(
         target_time,
         START_TIME,
     )
-    total = lerp_annual_output(
+    total = interp_annual_output(
         results["compartments"]
         .query(compartment=adult_ages)
         .sum(to_dims="time")
@@ -138,25 +139,22 @@ def get_notification_log_likelihood(results: dict):
 
     Notes:
     -----
-    Modelled case detections were compared against the notifications
+    Modelled case detections were compared against case notification counts
     obtained from the Vietnam National Tuberculosis Program. These are
     reported by calendar year, and so are offset by
     {{CALENDAR_YEAR_MIDPOINT}} of a year to sit at mid-year.
-    The model is solved at whole years, then linearly interpolated
+    The model is solved in whole years, then linearly interpolated
     to those mid-year points for comparison.
 
-    As counts, notifications are compared on the log scale with a
-    standard deviation of {{COUNT_LOG_SD}}, which relates the difference
-    to the size of the target, rather than being absolute.
+    Being counts, notifications are compared on the log scale with a
+    standard deviation of {{COUNT_LOG_SD}}, thereby relating the error
+    to the magnitude of the target, rather than using an absolute value.
     The log-density is averaged rather than summed over the years of data, so
     that this multi-year series contributes comparable weight to the likelihood
-    as the single-point targets.
+    as do the single-point targets.
     """
-    notif = lerp_annual_output(
-        results["flows"]["detection"].sum(to_dims="time").data,
-        NOTIF_TARGET.index,
-        START_TIME,
-    )
+    detect_result = results["flows"]["detection"].sum(to_dims="time").data
+    notif = interp_annual_output(detect_result, NOTIF_TARGET.index, START_TIME)
     return _log_normal_log_prob(notif, NOTIF_TARGET.to_numpy()).mean()
 
 
@@ -172,25 +170,17 @@ def get_death_log_likelihood(results: dict, who_mort: pd.Series):
 
     Notes:
     -----
-    Modelled TB deaths are compared against the WHO estimates of TB
-    mortality for {{ISO3}}. Deaths occurring in the community and during
-    treatment are summed before comparison, because the estimates do not
-    distinguish between them.
-
-    As for notifications, these counts are compared on the log scale with a
-    standard deviation of {{COUNT_LOG_SD}}, and averaged over the years for
-    which estimates are available.
+    Deaths occurring in the community and during treatment are 
+    summed for comparison.
+    
+    As for notifications, these counts are
+    compared on the log scale with a standard deviation of {{COUNT_LOG_SD}}, 
+    and averaged over the years for which estimates are available.
     """
-    community_deaths = lerp_annual_output(
-        results["flows"]["tb_mortality"].sum(to_dims="time").data,
-        who_mort.index,
-        START_TIME,
-    )
-    rx_deaths = lerp_annual_output(
-        results["flows"]["rx_death"].sum(to_dims="time").data,
-        who_mort.index,
-        START_TIME,
-    )
+    mort_results = results["flows"]["tb_mortality"].sum(to_dims="time").data
+    community_deaths = interp_annual_output(mort_results, who_mort.index, START_TIME)
+    rx_mort_results = results["flows"]["rx_death"].sum(to_dims="time").data
+    rx_deaths = interp_annual_output(rx_mort_results, who_mort.index, START_TIME)
     deaths = community_deaths + rx_deaths
     return _log_normal_log_prob(deaths, who_mort.to_numpy()).mean()
 
@@ -219,20 +209,18 @@ def get_adult_pulm_prev(
     Notes:
     -----
     Prevalence is calculated to approximate the quantity ascertained by a
-    bacteriologically confirmed prevalence survey, and so is restricted to
+    bacteriologically-confirmed prevalence survey, and so is restricted to
     adults, taken here as those aged {{YOUNG_END_AGE}} years and over.
-
-    Three groups contribute to the numerator: all those with active disease
-    in the high infectiousness stratum, a fraction of those in the low
+    Three groups contribute to the numerator: all persons with active disease
+    in the high infectiousness stratum, a proportion of persons in the low
     infectiousness stratum given by the "{{prop_lowinf_bactpos}}", and
     everyone currently receiving treatment. Clinical status does not
-    enter this calculation, such that subclinical disease contributes 
-    on the same basis as clinical disease.
-
-    The denominator is the total adult population at the same time point.
+    enter this calculation, with subclinical and clinical disease contributing
+    on the same basis. The denominator is the total 
+    adult population at the same time point.
     """
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    high_inf = lerp_annual_output(
+    high_inf = interp_annual_output(
         results["compartments"]
         .query(compartment=(infect_strat["high"], adult_ages))
         .sum(to_dims="time")
@@ -240,7 +228,7 @@ def get_adult_pulm_prev(
         target_time,
         START_TIME,
     )
-    low_inf = lerp_annual_output(
+    low_inf = interp_annual_output(
         results["compartments"]
         .query(compartment=(infect_strat["low"], adult_ages))
         .sum(to_dims="time")
@@ -248,7 +236,7 @@ def get_adult_pulm_prev(
         target_time,
         START_TIME,
     )
-    on_rx = lerp_annual_output(
+    on_rx = interp_annual_output(
         results["compartments"]
         .query(compartment=(disease_state["treatment"], adult_ages))
         .sum(to_dims="time")
@@ -256,7 +244,7 @@ def get_adult_pulm_prev(
         target_time,
         START_TIME,
     )
-    adult_pop = lerp_annual_output(
+    adult_pop = interp_annual_output(
         results["compartments"]
         .query(compartment=adult_ages)
         .sum(to_dims="time")
@@ -287,12 +275,11 @@ def get_pulm_prev_log_likelihood(
 
     Notes:
     -----
-    Modelled adult prevalence of bacteriologically confirmed pulmonary TB was
-    compared against the second Vietnamese national prevalence survey
-    (PLOS One). The target is published per 100,000 population and converted
-    to a proportion of the adult population.
-
-    Being a proportion, this quantity was compared on the log-odds scale with
+    Modelled adult prevalence of bacteriologically-confirmed pulmonary TB was
+    compared against the most recent (second) Vietnamese national prevalence survey
+    (PLOS One). This study reports prevalent cases per 100,000 population 
+    as a proportion of the adult population. Being a proportion, 
+    this quantity was compared on the log-odds scale with
     a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = PULM_PREV_TARGET.index[0]
@@ -324,26 +311,20 @@ def get_prev_decline_log_likelihood(
 
     Notes:
     -----
-    The two survey rounds reported by Nguyen et al. (Emerging Infectious
-    Diseases) are used to target the decline in prevalence rather than absolute values.
-    Only the ratio of the later to the earlier estimate is taken, 
-    so that the target constrains the trend in prevalence while remaining
-    insensitive to any discrepancy between the quantity these surveys
-    assess and our definition of prevalence.
-
-    The modelled ratio applies the same adult prevalence definition at both
-    time points. The ratio is strictly positive, so it is compared on the
-    log scale with a standard deviation of {{COUNT_LOG_SD}}.
+    The two survey rounds reported and compared in Nguyen et al. 
+    (Emerging Infectious Diseases) are used to target the decline in 
+    prevalence rather than absolute values.
+    The ratio of the later to the earlier adult pulmonary prevalence estimate
+    is taken, such that this rate of decline target constrains the trend in 
+    a single quantity over time, without reference to the absolute prevalence value.
+    The ratio is compared on the log scale with a
+     standard deviation of {{COUNT_LOG_SD}}.
     """
     decline_target = PREV_DECLINE_TARGET.sort_index()
     base_time, end_time = decline_target.index
     target_decline = decline_target.iloc[1] / decline_target.iloc[0]
-    _, pulm_end, pop_end = get_adult_pulm_prev(
-        results, disease_state, age_strat, infect_strat, end_time
-    )
-    _, pulm_base, pop_base = get_adult_pulm_prev(
-        results, disease_state, age_strat, infect_strat, base_time
-    )
+    _, pulm_end, pop_end = get_adult_pulm_prev(results, disease_state, age_strat, infect_strat, end_time)
+    _, pulm_base, pop_base = get_adult_pulm_prev(results, disease_state, age_strat, infect_strat, base_time)
     prev_end = pulm_end / (pop_end + _EPS)
     prev_base = pulm_base / (pop_base + _EPS)
     predicted_decline = prev_end / (prev_base + _EPS)
@@ -372,14 +353,12 @@ def get_infprop_log_likelihood(
     The proportion of prevalent adult TB that is highly infectious was
     compared against the equivalent proportion from the second Vietnamese
     national prevalence survey.
-
     The numerator is the high infectiousness stratum of the active
     compartment and the denominator is total adult prevalence, as defined
     above. This target therefore constrains how prevalent disease is
-    distributed across the infectiousness strata, without further
+    distributed across the infectiousness strata, without
     constraining the overall size of the prevalent pool.
-
-    As a proportion, this quantity is compared on the log-odds scale with
+    Being a proportion, this quantity is compared on the log-odds scale with
     a standard deviation of {{PROP_LOGIT_SD}}.
     """
     target_time = INF_PREV_TARGET.index[0]
@@ -421,7 +400,7 @@ def get_mixing_log_likelihood(
     The modelled age-mixing matrix in {{MIXING_TARGET_YEAR}} was compared
     against a synthetic contact matrix for {{ISO3}}, generated by projecting
     POLYMOD contact patterns onto the country's age structure using the
-    conmat R package. Both matrices are normalised by their spectral
+    `conmat` R package. Both matrices are normalised by their spectral
     radius before comparison, so that only the relative pattern of
     age-to-age mixing is targeted.
 
@@ -482,7 +461,7 @@ def make_log_likelihood(
     Notes:
     -----
     The log-likelihood is the sum of seven contributions,
-    wich are each taken as independent: 
+    which are each taken as independent: 
     the adult prevalence of _Mtb_ infection, case notifications, TB
     deaths, adult bacteriologically-confirmed prevalence, the decline in
     prevalence between the two prevalence surveys, the proportion of
@@ -490,31 +469,27 @@ def make_log_likelihood(
     between the modelled mixing matrix and a synthetic contact matrix.
 
     Two error models are applied to the epidemiological targets. Counts and
-    ratios are compared on the log scale, as
-    $\log \hat{y} \sim \mathcal{N}(\log y, \sigma_{c})$ with $\sigma_{c}$ of
+    ratios are compared on the log scale using a normal distribution,
+    as $\log \hat{y} \sim \mathcal{N}(\log y, \sigma_{c})$ with $\sigma_{c}$ of
     {{COUNT_LOG_SD}}, so that the discrepancy scales with the magnitude of
-    the target. Proportions are compared on the log-odds scale, as
-    $\mathrm{logit}(\hat{p}) \sim \mathcal{N}(\mathrm{logit}(p), \sigma_{p})$
-    with $\sigma_{p}$ of {{PROP_LOGIT_SD}}, which respects their bounds at
-    zero and one. In both cases the transformed target provides the mean of
-    the distribution and the transformed modelled value is evaluated against
-    it, which is equivalent to the reverse for these symmetric
-    distributions.
+    the target. Proportions are compared on the log-odds scale, 
+    also using a normal distribution, 
+    as $\mathrm{logit}(\hat{p}) \sim \mathcal{N}(\mathrm{logit}(p), \sigma_{p})$
+    with $\sigma_{p}$ of {{PROP_LOGIT_SD}}, thereby respecting their domain 
+    of $[0, 1]$. In both cases the transformed target provides the mean of
+    the distribution, which the transformed modelled value is evaluated against.
 
     The mixing-matrix contribution uses a third error model: the Canberra
-    distance from the synthetic matrix is compared to zero under a Normal
+    distance from the synthetic matrix is compared to zero under a normal
     distribution whose standard deviation, the "{{mixing_dist_sd}}", is
-    itself estimated. A uniform prior on this scale lets the weight of the
-    mixing target adjust to the data, while keeping it within a range
+    itself estimated. A uniform prior on this scale allows the weight of the
+    mixing target adjust to the data, while ensuring that its range
     that remains comparable to the epidemiological contributions.
 
-    Where a target spans multiple years, the log-density is averaged over
-    those years, so that each of the epidemiological series carries
-    comparable weight irrespective of how many observations it contains.
-
-    Parameter sets for which the solver does not reach a successful solution
-    are assigned a large negative log-likelihood, so that they are rejected
-    rather than contributing invalid model output to the likelihood.
+    For targets that comprise observations over multiple years, 
+    the log-density is averaged over the years for which it is available, 
+    so that each epidemiological series carries comparable weight 
+    irrespective of the number of observations it comprises.
     """
     weight_arr = jnp.array(age_weights)
     weight_ends = jnp.array(age_weights.index[[0, -1]])
@@ -531,15 +506,9 @@ def make_log_likelihood(
             get_latent_log_likelihood(results, disease_state, age_strat)
             + get_notification_log_likelihood(results)
             + get_death_log_likelihood(results, who_mort)
-            + get_pulm_prev_log_likelihood(
-                results, disease_state, age_strat, infect_strat
-            )
-            + get_prev_decline_log_likelihood(
-                results, disease_state, age_strat, infect_strat
-            )
-            + get_infprop_log_likelihood(
-                results, disease_state, age_strat, infect_strat
-            )
+            + get_pulm_prev_log_likelihood(results, disease_state, age_strat, infect_strat)
+            + get_prev_decline_log_likelihood(results, disease_state, age_strat, infect_strat)
+            + get_infprop_log_likelihood(results, disease_state, age_strat, infect_strat)
             + get_mixing_log_likelihood(
                 params,
                 weight_arr,
@@ -551,8 +520,6 @@ def make_log_likelihood(
                 conmat,
             )
         )
-        return jnp.where(
-            results["aux"].result == dfx._solution.RESULTS.successful, ll, -1e10
-        )
+        return jnp.where(results["aux"].result == dfx._solution.RESULTS.successful, ll, -1e10)
 
     return get_log_likelihood
