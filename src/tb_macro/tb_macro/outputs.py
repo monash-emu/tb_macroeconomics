@@ -84,8 +84,8 @@ def get_age_inc(results, age_strat, disease_state, clin_strat, infect_strat):
 
     Notes:
     -----
-    Incidence is the progression flow from incipient infection
-    to active disease, summed within each modelled age group.
+    Incidence is the calculated as the total number of persons 
+    progressing from incipient infection to active disease.
     """
     return results["flows"]["progression"].sumcats(source=age_strat.categories())
 
@@ -95,24 +95,26 @@ def get_age_prev(results, age_strat, disease_state, clin_strat, infect_strat):
 
     Notes:
     -----
-    Prevalence is calculated as the population in the compartments:
-    {{PREV_STATES}}. These are summed within each modelled age group.
+    TB prevalence is calculated as the total population in 
+    the compartments: {{PREV_STATES}}.
     """
     states = results["compartments"].query(compartment=disease_state[PREV_STATES])
     return states.sumcats(compartment=age_strat.categories())
 
 
 def get_age_pulm_prev(results, age_strat, disease_state, clin_strat, infect_strat):
-    """Bacteriologically defined pulmonary prevalence by modelled age group.
+    """Bacteriologically-confirmed pulmonary prevalence by modelled age group.
 
     Notes:
     -----
-    The numerator comprises all active disease in the high infectiousness
-    stratum, a fraction of the low infectiousness stratum given by
-    "{{prop_lowinf_bactpos}}", and everyone currently receiving
-    treatment. Clinical status does not enter this calculation.
-    Unlike the calibration target, all modelled age groups are
-    included.
+    For bacteriologically-confirmed pulmonary tuberculosis,
+    the numerator comprises both active disease states of 
+    the high infectiousness stratum, a fraction of 
+    the low infectiousness stratum given by
+    "{{prop_lowinf_bactpos}}", and all persons under treatment. 
+    Clinical status does not affect this calculation.
+    All modelled age groups are included for this calculation
+    (unlike for the calibration target).
     """
     high_inf = results["compartments"].query(
         compartment=infect_strat["high"]
@@ -126,19 +128,6 @@ def get_age_pulm_prev(results, age_strat, disease_state, clin_strat, infect_stra
     return high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
 
 
-def get_age_clin_prev(results, age_strat, disease_state, clin_strat, infect_strat):
-    """Prevalence of clinical active TB by modelled age group.
-
-    Notes:
-    -----
-    Clinical prevalence is the population in the clinical
-    stratum of active TB (both high- and low-infectiousness), 
-    summed within each modelled age group.
-    """
-    states = results["compartments"].query(compartment=clin_strat["clin"])
-    return states.sumcats(compartment=age_strat.categories())
-
-
 def get_age_rx_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     """Prevalence of people on TB treatment by modelled age group.
 
@@ -148,18 +137,6 @@ def get_age_rx_prev(results, age_strat, disease_state, clin_strat, infect_strat)
     within each modelled age group.
     """
     states = results["compartments"].query(compartment=disease_state["treatment"])
-    return states.sumcats(compartment=age_strat.categories())
-
-
-def get_age_recovered_prev(results, age_strat, disease_state, clin_strat, infect_strat):
-    """Prevalence of recovered TB by modelled age group.
-
-    Notes:
-    -----
-    This is the population in the recovered compartment, summed
-    within each modelled age group.
-    """
-    states = results["compartments"].query(compartment=disease_state["recovered"])
     return states.sumcats(compartment=age_strat.categories())
 
 
@@ -181,8 +158,8 @@ def get_age_notifs(results, age_strat, disease_state, clin_strat, infect_strat):
 
     Notes:
     -----
-    Notifications are routine detection plus active case finding,
-    summed within each modelled age group.
+    Notifications are calculated from both routine detection 
+    as well as the active case finding intervention.
     """
     routine = results["flows"]["detection"].sumcats(source=age_strat.categories())
     acf = results["flows"]["acf"].sumcats(source=age_strat.categories())
@@ -194,12 +171,10 @@ def get_age_deaths(results, age_strat, disease_state, clin_strat, infect_strat):
 
     Notes:
     -----
-    Deaths in the community and during treatment are summed
-    within each modelled age group.
+    TB-related deaths are caculated from both TB natural mortality
+    prior to detection, along with treatment-related deaths.
     """
-    community_death_age = results["flows"]["tb_mortality"].sumcats(
-        source=age_strat.categories()
-    )
+    community_death_age = results["flows"]["tb_mortality"].sumcats(source=age_strat.categories())
     rx_death_age = results["flows"]["rx_death"].sumcats(source=age_strat.categories())
     return community_death_age + rx_death_age
 
@@ -436,9 +411,9 @@ def map_and_regroup_output(
     -----
     Age-stratified outputs are reallocated from modelled age
     groups to requested output age groups using the population
-    overlap fractions. Those fractions come from 1 January WPP
-    counts for the calendar year of each (possibly mid-year)
-    output time.
+    overlap fractions. These fractions are calculated from 
+    1^st^ January WPP counts for the calendar year of each 
+    (often mid-year) output time.
     """
     mapping = _age_mapping_from_pops(output.columns, single_age_pops, out_groups)
     return regroup_output(output, mapping)
@@ -463,12 +438,9 @@ def regroup_full_outputs(
 
     Notes:
     -----
-    Age-stratified outputs are regrouped to the requested age
-    bands. Outputs without age structure are left unchanged
-    aside from aligning their times to the population data.
-    The WPP age-structure mapping is built once and reused,
-    joining each mid-year output to that year's 1 January
-    population.
+    Age-stratified outputs are regrouped to the requested age bands. 
+    The WPP age-structure mapping is used to join each mid-year output 
+    to that year's 1^st^ January population.
     """
 
     # Create empty data structure
@@ -545,9 +517,7 @@ def rerun_model_for_outputs(
         "notifications": get_age_notifs,
         "deaths": get_age_deaths,
         "age_pop": get_age_pop,
-        "clin": get_age_clin_prev,
         "treatment": get_age_rx_prev,
-        "recovered": get_age_recovered_prev,
     }
     sample_labels = []
     outputs = [{out: [] for out in indicator_funcs} for _ in scen_params]

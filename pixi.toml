@@ -9,6 +9,7 @@ version = "0.1.0"
 [dependencies]
 python = "3.13.*"
 ipykernel = ">=7.2.0,<8"
+tabulate = ">=0.9.0"
 
 [pypi-dependencies]
 summer3 = { git = "https://github.com/monash-emu/summer3wip.git" , rev="15ad51b44f3c4de687aa33e8e9c6213d3e228e30"}

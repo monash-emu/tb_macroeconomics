@@ -481,10 +481,11 @@ def make_log_likelihood(
 
     Notes:
     -----
-    The log-likelihood is the sum of seven contributions, taken as
-    independent: the adult prevalence of _Mtb_ infection, case notifications, TB
+    The log-likelihood is the sum of seven contributions,
+    wich are each taken as independent: 
+    the adult prevalence of _Mtb_ infection, case notifications, TB
     deaths, adult bacteriologically-confirmed prevalence, the decline in
-    prevalence between the two prevalence survey rounds, the proportion of
+    prevalence between the two prevalence surveys, the proportion of
     prevalent disease that is highly infectious, and the Canberra distance
     between the modelled mixing matrix and a synthetic contact matrix.
 
