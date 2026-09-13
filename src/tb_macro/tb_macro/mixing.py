@@ -341,8 +341,6 @@ def canberra_distance(
     \frac{|x_{ij} - y_{ij}|}{|x_{ij}| + |y_{ij}| + \varepsilon}
     $$
     with $\varepsilon =$ {{CANBERRA_EPS}} to avoid division by zero.
-    Because each term represents a relative discrepancy, low-contact cells
-    contribute comparably to high-contact cells.
     """
     x = m1.reshape(-1)
     y = m2.reshape(-1)

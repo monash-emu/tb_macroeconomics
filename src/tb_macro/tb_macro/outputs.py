@@ -410,10 +410,10 @@ def map_and_regroup_output(
     Notes:
     -----
     Age-stratified outputs are reallocated from modelled age
-    groups to requested output age groups using the population
-    overlap fractions. These fractions are calculated from 
-    1^st^ January WPP counts for the calendar year of each 
-    (often mid-year) output time.
+    groups to the output age groups using population overlap fractions. 
+    The fractions used to define the reallocation process are 
+    calculated from 1^st^ January WPP counts for the calendar year of 
+    each (often mid-year) output time.
     """
     mapping = _age_mapping_from_pops(output.columns, single_age_pops, out_groups)
     return regroup_output(output, mapping)
@@ -435,12 +435,6 @@ def regroup_full_outputs(
 
     Returns:
         The regrouped outputs
-
-    Notes:
-    -----
-    Age-stratified outputs are regrouped to the requested age bands. 
-    The WPP age-structure mapping is used to join each mid-year output 
-    to that year's 1^st^ January population.
     """
 
     # Create empty data structure

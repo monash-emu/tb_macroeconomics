@@ -274,7 +274,8 @@ def add_infection_flows(
     because previous infection or disease is assumed to 
     override any effect of BCG. A time-varying age-structured 
     mixing matrix is built from the "{{bg_mixing}}", 
-    "{{a_spread}}" and "{{pc_strength}}" parameters.
+    "{{a_spread}}" and "{{pc_strength}}" parameters,
+    as described in section on population mixing.
     """
     dynamic_mm = defer(get_norm_c_matrix)(
         jnp.array(age_weights),

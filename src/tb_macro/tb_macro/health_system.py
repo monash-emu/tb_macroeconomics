@@ -98,7 +98,7 @@ def compute_outcome_props(
     treatment was calculated as $1 - \exp(-\delta \mu)$, 
     where $\delta$ is the "{{rx_duration}}" parameter and $\mu$ is 
     the age-specific background mortality rate. The remaining 
-    proportion was split according to the treatment success
+    proportion is then split according to the treatment success
     rate and the proportion of unsuccessful outcomes that are
     deaths. Background deaths already counted are subtracted from
     the death proportion, such that only the additional deaths 
@@ -106,8 +106,7 @@ def compute_outcome_props(
     are attributed to the TB-related mortality transition.
     The remaining proportion of the unsuccessful fraction 
     after treatment-related deaths have been subtracted 
-    was considered as relapse. Treatment success was calculated as 
-    the complement of treatment-related death plus relapse.
+    was considered as relapse.
     """
     prop_nat_death_on_rx = 1.0 - jnp.exp(-rx_duration * death_rate)
     req_prop_death_on_rx = (1.0 - tsr) * prop_neg_rx_death
