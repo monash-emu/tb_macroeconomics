@@ -1,8 +1,12 @@
+import numpy as np
 import pandas as pd
 from jax import numpy as jnp
 from jax import jit
 from numpyro import distributions as dist
+from numpyro.infer.mcmc import MCMC
 import diffrax as dfx
+import arviz as az
+from arviz import InferenceData
 
 from summer3.epi import CompartmentalEpiModel, Stratification
 
@@ -526,3 +530,28 @@ def make_log_likelihood(
         return jnp.where(results["aux"].result == dfx._solution.RESULTS.successful, ll, -1e10)
 
     return get_log_likelihood
+
+
+MCMC_EXTRA_FIELDS = (
+    "potential_energy",
+    "energy",
+    "num_steps",
+    "accept_prob",
+)
+
+
+def inference_data_from_mcmc(mcmc: MCMC) -> InferenceData:
+    """Convert a finished NumPyro MCMC run to ArviZ InferenceData.
+
+    Args:
+        mcmc: MCMC object after ``run``, collected with ``MCMC_EXTRA_FIELDS``
+
+    Returns:
+        Inference data whose ``sample_stats.lp`` is the joint log posterior
+        of each draw (higher is better)
+    """
+    extras = mcmc.get_extra_fields(group_by_chain=True)
+    idata = az.from_numpyro(mcmc, log_likelihood=False)
+    lp = -np.asarray(extras["potential_energy"])
+    idata.sample_stats["lp"] = (("chain", "draw"), lp)
+    return idata

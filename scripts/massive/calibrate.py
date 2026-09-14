@@ -21,7 +21,6 @@ from numpyro import infer
 from jax.random import PRNGKey
 import gc
 import jax
-import arviz as az
 from datetime import datetime, UTC
 
 from tb_macro.utils import get_logger, get_git_provenance, write_run_log
@@ -29,7 +28,11 @@ from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS, get_nuts_init_values
 from tb_macro.inputs import load_demography, load_fertility, load_who_outcomes
 from tb_macro.demography import prepare_pop_data_for_entries
 from tb_macro.epi import get_base_model, add_flows_to_model, initialise_pops
-from tb_macro.calibration import make_log_likelihood
+from tb_macro.calibration import (
+    MCMC_EXTRA_FIELDS,
+    inference_data_from_mcmc,
+    make_log_likelihood,
+)
 from tb_macro.outputs import (
     get_posterior_samples,
     rerun_model_for_outputs,
@@ -103,8 +106,8 @@ if __name__ == "__main__":
         num_samples=n_runs,
         num_chains=N_CHAINS_REMOTE,
     )
-    mcmc.run(PRNGKey(2))
-    idata = az.from_numpyro(mcmc)
+    mcmc.run(PRNGKey(2), extra_fields=MCMC_EXTRA_FIELDS)
+    idata = inference_data_from_mcmc(mcmc)
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%MZ")
     idata.to_netcdf(path / f"{timestamp}.nc")
 
