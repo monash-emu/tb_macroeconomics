@@ -430,12 +430,12 @@ def add_latency_flows(
 
     source = disease_state["incipient"]
     dest = clin_strat["subclin"]
-    prog = TransitionFlow("progression", source, dest, prog_func)
     prog_func = defer(latency_age_adj)(
         Parameter("progression_rate_age0", 0.0),
         Parameter("progression_rate_age5", 0.0),
         Parameter("progression_rate_age15", 0.0),
     )
+    prog = TransitionFlow("progression", source, dest, prog_func)
     inf_prog_param = Parameter("progression_prop_infectious", 0.0)
     prog.adjustments_dest.append(defer(inf_prog_adj)(inf_prog_param))
     epi_model.add_flow(prog)
