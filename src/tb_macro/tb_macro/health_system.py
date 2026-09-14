@@ -34,28 +34,52 @@ def add_detection(
     with subclinical disease not affected.
     The rate of detection remains zero until 1957 and then 
     follows a cosine-smoothed scale-up through 1986 and 2007 
-    to the "{{detect_rate_current}}" in 2020. The 2007 rate is 
+    to the "{{detect_rate_current}}" in 2014, the year of Vietnam's
+    National TB Strategy. The 2007 rate is 
     the current rate multiplied by the "{{rel_detect_2007}}" parameter, 
     and the 1986 rate is that 2007 rate multiplied by the "{{rel_detect_1986}}".
     To account for the effects of the COVID-19 pandemic, 
-    detection falls in 2021 to the {{detect_rate_current}} multiplied by the
-    "{{rel_detect_2021}}" parameter, before returning to the current rate in 2022.
+    detection falls at the start of 2021 to the current rate multiplied
+    by the "{{rel_detect_2021}}" parameter, remains at that reduced rate
+    through most of the year, and returns to the current rate at the 
+    start of 2022.
     """
-    detect_rate_2020 = Parameter("detect_rate_current", 0.0)
-    detect_rate_2007 = detect_rate_2020 * Parameter("rel_detect_2007", 0.0)
+    detect_rate_now = Parameter("detect_rate_current", 0.0)
+    detect_rate_2007 = detect_rate_now * Parameter("rel_detect_2007", 0.0)
     detect_rate_1986 = detect_rate_2007 * Parameter("rel_detect_1986", 0.0)
     detect_rate_1957 = 0.0
-    detect_rate_2021 = detect_rate_2020 * Parameter("rel_detect_2021", 0.0)
-    detect_rate_2022 = detect_rate_2020
+    detect_rate_covid = detect_rate_now * Parameter("rel_detect_2021", 0.0)
 
     sim_time = Time + start_time
 
-    def detect_curve(t, r1957, r1986, r2007, r2020, r2021, r2022):
+    def detect_curve(t, r1957, r1986, r2007, r_now, r_covid):
         times = get_scale_data(
-            jnp.array([1957.0, 1986.0, 2007.0, 2020.0, 2021.0, 2022.0])
+            jnp.array(
+                [
+                    1957.0,
+                    1986.0,
+                    2007.0,
+                    2014.0,
+                    2021.0,
+                    2021.25,
+                    2021.75,
+                    2022.0,
+                ]
+            )
         )
         vals = get_scale_data(
-            jnp.array([r1957, r1986, r2007, r2020, r2021, r2022])
+            jnp.array(
+                [
+                    r1957,
+                    r1986,
+                    r2007,
+                    r_now,
+                    r_now,
+                    r_covid,
+                    r_covid,
+                    r_now,
+                ]
+            )
         )
         return get_cos_multicurve(t, times, vals)
 
@@ -64,9 +88,8 @@ def add_detection(
         detect_rate_1957,
         detect_rate_1986,
         detect_rate_2007,
-        detect_rate_2020,
-        detect_rate_2021,
-        detect_rate_2022,
+        detect_rate_now,
+        detect_rate_covid,
     )
 
     source = (disease_state["active"], clin_strat["clin"])
