@@ -120,6 +120,11 @@ PARAM_NAMES = {
     "rx_duration": "treatment duration",
     "mixing_dist_sd": "mixing matrix distance standard deviation",
 }
+PARAM_ABBREVS = {
+    "rel_detect_2007": "relative detection rate, 2007",
+    "rel_detect_1986": "relative detection rate, 1986",
+    "rel_sus_cleared": "cleared/recovered susceptibility",
+}
 
 _unknown_name = set(PARAM_NAMES) - set(BASE_PARAMS)
 if _unknown_name:

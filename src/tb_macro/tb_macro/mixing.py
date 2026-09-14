@@ -23,6 +23,45 @@ def get_year_index(
     return (clamped_time - ends[0]).astype(jnp.int32)
 
 
+def build_s_matrix_single_age_components(
+    fert: jnp.array,
+    fert_ends: jnp.array,
+    time: float,
+    bg_mixing: float,
+    a_spread: float,
+    pc_strength: float,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Split the single-age transmission kernel into its three components.
+
+    Args:
+        fert: The fertility data (padded with zeroes)
+        fert_ends: The start and finish of the fertility index
+        time: Model time
+        bg_mixing: Background mixing value
+        a_spread: Decay parameter for assortative mixing
+        pc_strength: Scaling parameter for parent-child contacts
+
+    Returns:
+        Background, assortative, parent-child and overall kernels,
+            each (MAX_AGE + 1) x (MAX_AGE + 1)
+    """
+    ages = jnp.arange(MAX_AGE + 1)
+    n_ages = MAX_AGE + 1
+
+    age_diff_mat = jnp.abs(ages[:, None] - ages[None, :])
+    assortative = (1.0 / a_spread) * jnp.exp(-age_diff_mat / a_spread)
+
+    age_gap_mat = age_diff_mat.astype(jnp.int32)
+    child_age_mat = jnp.minimum(ages[:, None], ages[None, :])
+    child_birth_years = time - child_age_mat
+    clamped_birth_years = get_year_index(fert_ends, child_birth_years)
+    parent_child = pc_strength * fert[clamped_birth_years, age_gap_mat]
+
+    background = jnp.full((n_ages, n_ages), bg_mixing)
+    overall = background + assortative + parent_child
+    return background, assortative, parent_child, overall
+
+
 def build_s_matrix_single_age(
     fert: jnp.array,
     fert_ends: jnp.array,
@@ -66,21 +105,10 @@ def build_s_matrix_single_age(
     Further, the relative strength of each of the three
     contributions to mixing are adjusted at each calibration iteration.
     """
-    ages = jnp.arange(MAX_AGE + 1)
-
-    # Assortative component - depends on age difference only
-    age_diff_mat = jnp.abs(ages[:, None] - ages[None, :])
-    assort_mat = (1.0 / a_spread) * jnp.exp(-age_diff_mat / a_spread)
-
-    # Child-parent component - depends on fertility and age difference
-    age_gap_mat = jnp.abs(ages[:, None] - ages[None, :]).astype(jnp.int32)
-    child_age_mat = jnp.minimum(ages[:, None], ages[None, :])
-    child_birth_years = time - child_age_mat
-    clamped_birth_years = get_year_index(fert_ends, child_birth_years)
-    child_parent_mat = pc_strength * fert[clamped_birth_years, age_gap_mat]
-
-    # Combine the three components
-    return bg_mixing + assort_mat + child_parent_mat
+    _, _, _, overall = build_s_matrix_single_age_components(
+        fert, fert_ends, time, bg_mixing, a_spread, pc_strength
+    )
+    return overall
 
 
 def get_full_normalised_within_age_band_weights(

@@ -13,15 +13,16 @@ from summer3.epi import Stratification, ManagedArray
 
 from tb_macro.constants import (
     AGE_STRATA,
+    INFECT_COMPS,
     INFECTED_STATES,
     ISO3,
     MIXING_TARGET_YEAR,
     YOUNG_END_AGE,
 )
 from tb_macro.inputs import get_norm_conmat
-from tb_macro.mixing import canberra_distance
+from tb_macro.mixing import build_s_matrix_single_age_components, canberra_distance
 from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
-from tb_macro.parameters import BASE_PARAMS, PARAM_BOUNDS, PARAM_NAMES
+from tb_macro.parameters import BASE_PARAMS, PARAM_ABBREVS, PARAM_BOUNDS, PARAM_NAMES
 from tb_macro.targets import (
     INF_PREV_TARGET,
     LATENT_TARGET,
@@ -543,6 +544,131 @@ def plot_mixing_target_comparison(
     return fig
 
 
+_INFECT_SOURCE_LABELS = {
+    "mtb_naive": "never-infected",
+    "contained": "contained",
+    "cleared": "cleared",
+    "recovered": "recovered",
+}
+
+
+def plot_infection_source_props(
+    results: dict,
+    start: float,
+    end: float,
+) -> plt.figure:
+    """Stacked area of new infection proportions by source compartment.
+
+    Args:
+        results: Results from a single model run
+        start: First year to plot
+        end: Last year to plot
+
+    Returns:
+        The figure
+    """
+    total_pop = _managed_to_annual(results["compartments"])
+    rates = {}
+    for comp in INFECT_COMPS:
+        infections = _managed_to_annual(results["flows"][f"infect_{comp}"])
+        rates[_INFECT_SOURCE_LABELS[comp]] = infections / total_pop * 1e5
+    df = pd.DataFrame(rates).loc[start:end].clip(lower=0.0)
+    prop_df = df.div(df.sum(axis=1), axis=0).dropna()
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    prop_df.plot.area(ax=ax)
+    fig.suptitle("infection source by compartment")
+    ax.set_xlim(start, end)
+    ax.set_ylim(bottom=0.0)
+    ax.set_ylabel("proportion")
+    ax.legend(title="source", loc="upper left")
+    fig.tight_layout()
+    plt.close()
+    return fig
+
+
+def plot_single_age_s_matrix_components(
+    fert_padded: pd.DataFrame,
+    params: dict,
+    year: float = MIXING_TARGET_YEAR,
+) -> plt.figure:
+    """Plot the single-age S-matrix and its three mixing components.
+
+    Args:
+        fert_padded: Fertility rates padded across single years of age
+        params: Parameter set containing the mixing scalars
+        year: Calendar year at which to evaluate the kernel
+
+    Returns:
+        The figure
+    """
+    background, assortative, parent_child, overall = build_s_matrix_single_age_components(
+        jnp.array(fert_padded),
+        jnp.array(fert_padded.index[[0, -1]]),
+        year,
+        params["bg_mixing"],
+        params["a_spread"],
+        params["pc_strength"],
+    )
+    panels = (
+        (assortative, "assortative"),
+        (background, "background"),
+        (parent_child, "parent-child"),
+        (overall, "overall"),
+    )
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 10), constrained_layout=True)
+    for ax, (matrix, title) in zip(axes.ravel(), panels):
+        data = np.asarray(matrix)
+        sns.heatmap(data, cmap="viridis", xticklabels=10, yticklabels=10, ax=ax, vmin=0.0, square=True)
+        ax.set_title(title)
+        ax.set_xlabel("age")
+        ax.set_ylabel("age")
+    fig.suptitle(f"single-age mixing kernel, {int(year)}")
+    plt.close()
+    return fig
+
+
+def plot_mean_contacts_by_age(
+    results: dict,
+    year: float = MIXING_TARGET_YEAR,
+) -> plt.figure:
+    """Compare modelled and synthetic mean contacts by age group.
+
+    Both matrices are spectral-radius normalised, as in the likelihood.
+    Mean contacts are the row sums of the mixing matrix.
+
+    Args:
+        results: Results from a single model run
+        year: Calendar year of the modelled mixing matrix
+
+    Returns:
+        The figure
+    """
+    modelled = np.asarray(
+        results["computed_values"]["dynamic_mm"].to_xarray_da().sel(time=year)
+    )
+    target = np.asarray(get_norm_conmat(ISO3))
+    df = pd.DataFrame(
+        {
+            "age_group": [str(a) for a in AGE_STRATA],
+            "modelled": modelled.sum(axis=1),
+            "target": target.sum(axis=1),
+        }
+    )
+    plot_df = df.melt(id_vars="age_group", var_name="series", value_name="mean_contacts")
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.barplot(data=plot_df, x="age_group", y="mean_contacts", hue="series", ax=ax)
+    ax.set_xlabel("age group")
+    ax.set_ylabel("mean contacts")
+    ax.set_title(f"mean contacts by age, {int(year)}")
+    ax.set_ylim(bottom=0.0)
+    fig.tight_layout()
+    plt.close()
+    return fig
+
+
 def _current_priors() -> Dict[str, dist.Distribution]:
     """Uniform priors from the current PARAM_BOUNDS."""
     return {k: dist.Uniform(v[0], v[1]) for k, v in PARAM_BOUNDS.items()}
@@ -579,13 +705,13 @@ def plot_prior_post(
     n_rows = int(np.ceil(len(var_names) / n_cols))
     priors = _current_priors()
     axes = az.plot_density(
-        idata, var_names=var_names, shade=0.3, grid=[n_rows, n_cols], figsize=[10, 4 * n_rows]
+        idata, var_names=var_names, shade=0.3, grid=[n_rows, n_cols], figsize=[10, 15]
     )
     for ax in axes.ravel():
         param = ax.title.get_text().split("\n")[0]
         if param not in priors:
             continue
-        ax.set_title(PARAM_NAMES[param])
+        ax.set_title((PARAM_NAMES | PARAM_ABBREVS)[param])
         distri = priors[param]
         ax_low, ax_high = ax.get_xlim()
         low = float(getattr(distri, "low", ax_low))
