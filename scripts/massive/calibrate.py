@@ -19,6 +19,7 @@ numpyro.set_host_device_count(N_CHAINS_REMOTE)
 from numpyro import distributions as dist
 from numpyro import infer
 from jax.random import PRNGKey
+import gc
 import jax
 import arviz as az
 from datetime import datetime, UTC
@@ -106,6 +107,11 @@ if __name__ == "__main__":
     idata = az.from_numpyro(mcmc)
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%MZ")
     idata.to_netcdf(path / f"{timestamp}.nc")
+
+    # Remote NUTS's XLAs from memory
+    del mcmc, kernel, log_like, model
+    jax.clear_caches()
+    gc.collect()
 
     samples = get_posterior_samples(idata, N_OUTPUT_SAMPLES)
     outputs, sample_labels = rerun_model_for_outputs(
