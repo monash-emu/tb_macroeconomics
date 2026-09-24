@@ -25,4 +25,5 @@ numpyro = ">=0.20.0, <0.21"
 jupyterlab = ">=4.5.6, <5"
 jupyterlab-git = ">=0.52.0, <0.53"
 seaborn = ">=0.13.2, <0.14"
+pyarrow = ">=25.0.1, <26"
 
