@@ -425,8 +425,10 @@ def add_latency_flows(
     contain = TransitionFlow("containment", source, dest, contain_func)
     epi_model.add_flow(contain)
 
+    n_inf = float(len(INF_STRATA))
+
     def inf_prog_adj(p_inf) -> CategoryData:
-        return infect_strat.categories().wrap(jnp.array([1.0 - p_inf, p_inf]))
+        return infect_strat.categories().wrap(n_inf * jnp.array([(1.0 - p_inf), p_inf]))
 
     source = disease_state["incipient"]
     dest = clin_strat["subclin"]
