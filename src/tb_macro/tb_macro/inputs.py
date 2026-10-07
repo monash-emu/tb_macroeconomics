@@ -1,5 +1,9 @@
 from typing import Tuple
 import re
+from io import StringIO
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
 import numpy as np
 import pandas as pd
 
@@ -7,6 +11,47 @@ from jax import numpy as jnp
 
 from tb_macro.constants import BASE_PATH, DATA_PATH, AGE_STRATA, MAX_AGE, CALENDAR_YEAR_MIDPOINT, ISO3
 from tb_macro.mixing import normalise_by_spectral_radius
+
+_WHO_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/csv,text/plain,*/*",
+    "Referer": "https://www.who.int/teams/global-tuberculosis-programme/data",
+}
+
+
+def read_who_csv(dataset: str) -> pd.DataFrame:
+    """Download a WHO TME CSV (`ds=` name), with Internet Archive fallback if blocked.
+
+    WHO often returns 403 for bare Python urllib, or redirects bots to `/sorry/`.
+    """
+    url = f"https://extranet.who.int/tme/generateCSV.asp?ds={dataset}"
+    candidates = [
+        url,
+        f"https://web.archive.org/web/2025/{url}",
+        f"https://web.archive.org/web/2024/{url}",
+    ]
+
+    last_err: Exception | None = None
+    for candidate in candidates:
+        try:
+            with urlopen(Request(candidate, headers=_WHO_HEADERS), timeout=120) as resp:
+                text = resp.read().decode("utf-8", errors="replace")
+                if "sorry" in resp.geturl() or text.lstrip().startswith("<"):
+                    raise ValueError(f"non-CSV response from {resp.geturl()}")
+            return pd.read_csv(StringIO(text))
+        except (HTTPError, ValueError, TimeoutError, OSError) as err:
+            last_err = err
+            continue
+
+    raise RuntimeError(
+        f"Could not download WHO dataset {dataset!r}. "
+        f"Open {url} in a browser and save under data/who/."
+    ) from last_err
+
 
 
 def get_country_pop(
