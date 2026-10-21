@@ -470,7 +470,7 @@ def get_country_indicators(
     Burden estimates are offset by {{CALENDAR_YEAR_MIDPOINT}} of a year 
     to sit at mid-year.
     """
-    data = pd.read_csv(DATA_PATH / "who/who_indicators_20260528T0213Z.csv")
+    data = pd.read_csv(DATA_PATH / "who/who_indicators_20261007T0317Z.csv")
     country_data = data[data["iso3"] == iso3]
     country_data.index = country_data["year"].astype(float) + CALENDAR_YEAR_MIDPOINT
     return country_data
@@ -540,7 +540,7 @@ def load_who_outcomes(
     WHO estimates of TB deaths with and without HIV are summed
     to create a single mortality series.
     """
-    raw_outcome_data = pd.read_csv(DATA_PATH / "who/who_outcomes_20260514T0437Z.csv")
+    raw_outcome_data = pd.read_csv(DATA_PATH / "who/who_outcomes_20261021T0619Z.csv")
     outcome_data = raw_outcome_data[raw_outcome_data["iso3"] == iso3]
     tsr = calc_tsr_from_outcomes(outcome_data)
     death_in_unsucc = calc_death_in_unsucc_outcomes(outcome_data)
