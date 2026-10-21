@@ -102,6 +102,17 @@ def get_age_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     return states.sumcats(compartment=age_strat.categories())
 
 
+def get_age_recovered(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Prevalence of the recovered population by modelled age group.
+
+    Notes:
+    -----
+    The recovered population consists of the recovered compartment only.
+    """
+    states = results["compartments"].query(compartment=disease_state["recovered"])
+    return states.sumcats(compartment=age_strat.categories())
+
+
 def get_age_pulm_prev(results, age_strat, disease_state, clin_strat, infect_strat):
     """Bacteriologically-confirmed pulmonary prevalence by modelled age group.
 
@@ -512,6 +523,7 @@ def rerun_model_for_outputs(
         "deaths": get_age_deaths,
         "age_pop": get_age_pop,
         "treatment": get_age_rx_prev,
+        "recovered": get_age_recovered,
     }
     sample_labels = []
     outputs = [{out: [] for out in indicator_funcs} for _ in scen_params]
