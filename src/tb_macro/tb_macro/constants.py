@@ -67,4 +67,8 @@ SOLVER_KWARGS = {"max_steps": 4000}
 N_CHAINS_REMOTE = 8
 N_RUNS_LOCAL = 40
 N_OUTPUT_SAMPLES = 40
-SCENARIO_PARAMS = [{}, {"acf_coverage": 0.8}]
+SCENARIO_PARAMS = [
+    {},
+    {"acf_coverage": 0.8, "acf_duration": 5.0},
+    {"acf_coverage": 0.8, "acf_duration": 10.0},
+]

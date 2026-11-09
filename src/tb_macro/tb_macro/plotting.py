@@ -179,6 +179,187 @@ def add_pulm_prev_decline_arrow(
     )
 
 
+def _sum_df_over_sample_level(df: pd.DataFrame) -> pd.DataFrame:
+    """Collapse the innermost age-group level, leaving sample columns."""
+    return df.T.groupby(level=0).sum().T
+
+
+def get_scenario_indicator_totals(
+    good_out: pd.DataFrame,
+    young_end_age: int = YOUNG_END_AGE,
+) -> Dict[int, Dict[str, pd.DataFrame]]:
+    """Sum age-stratified scenario outputs into sample-path totals.
+
+    Args:
+        good_out: Collated multi-scenario outputs with column levels
+            scenario / indicator / sample / agegroup
+        young_end_age: Ages at or above this threshold count as adult
+
+    Returns:
+        Mapping from scenario index to indicator DataFrames whose columns
+        are posterior samples
+    """
+    scenarios: Dict[int, Dict[str, pd.DataFrame]] = {}
+    for s in good_out.columns.get_level_values("scenario").unique():
+        adult_ages = (
+            good_out[s]["age_pop"].columns.get_level_values("agegroup").astype(int)
+            >= young_end_age
+        )
+        scenarios[int(s)] = {
+            "total_pop": _sum_df_over_sample_level(good_out[s]["age_pop"]),
+            "incidence": _sum_df_over_sample_level(good_out[s]["incidence"]),
+            "notifications": _sum_df_over_sample_level(good_out[s]["notifications"]),
+            "prevalence": _sum_df_over_sample_level(good_out[s]["prevalence"]),
+            "deaths": _sum_df_over_sample_level(good_out[s]["deaths"]),
+            "adult_pop": _sum_df_over_sample_level(
+                good_out[s]["age_pop"].loc[:, adult_ages]
+            ),
+            "pulm_prev": _sum_df_over_sample_level(
+                good_out[s]["pulm_prev"].loc[:, adult_ages]
+            ),
+            "latent": _sum_df_over_sample_level(
+                good_out[s]["latent"].loc[:, adult_ages]
+            ),
+        }
+    return scenarios
+
+
+def _median_and_ci(
+    df: pd.DataFrame,
+    q_low: float = 0.025,
+    q_high: float = 0.975,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Median and equal-tailed credible interval across sample columns."""
+    return (
+        df.quantile(0.5, axis=1),
+        df.quantile(q_low, axis=1),
+        df.quantile(q_high, axis=1),
+    )
+
+
+def plot_scenario_credible_intervals(
+    scenario_totals: Dict[int, Dict[str, pd.DataFrame]],
+    scenario_labels: Dict[int, str],
+    notif_target: Optional[pd.Series],
+    death_target: Optional[pd.Series],
+    latent_target: Optional[pd.Series],
+    plot_start: float,
+    end_time: float,
+    mode: str,
+    pulm_prev_target: Optional[pd.Series],
+    prev_decline_target: Optional[pd.Series] = None,
+    q_low: float = 0.025,
+    q_high: float = 0.975,
+) -> plt.figure:
+    """Plot median trajectories with credible-interval bands by scenario.
+
+    Uses the same six-panel layout as ``plot_outputs``, but summarises the
+    posterior sample paths instead of drawing spaghetti lines.
+
+    Args:
+        scenario_totals: Output of ``get_scenario_indicator_totals``
+        scenario_labels: Display names keyed by scenario index
+        notif_target: Notification target counts, or None to omit
+        death_target: Death target counts, or None to omit
+        latent_target: Adult latent target percentage, or None to omit
+        plot_start: Year to plot from
+        end_time: Last year shown on the x-axis upper bound
+        mode: Whether to plot counts or rates
+        pulm_prev_target: Adult pulmonary prevalence target rate, or None
+        prev_decline_target: Culture-positive survey points for the decline arrow
+        q_low: Lower quantile of the credible interval
+        q_high: Upper quantile of the credible interval
+
+    Returns:
+        The figure
+    """
+    fig, axes = plt.subplots(3, 2, figsize=[12, 10], sharex=True)
+    ax_locs = {
+        "prevalence": axes[0, 0],
+        "incidence": axes[0, 1],
+        "notifications": axes[1, 0],
+        "deaths": axes[1, 1],
+        "latent": axes[2, 0],
+        "pulm_prev": axes[2, 1],
+    }
+    def _in_window(target: Optional[pd.Series]) -> Optional[pd.Series]:
+        if target is None:
+            return None
+        clipped = target.loc[(target.index >= plot_start) & (target.index <= end_time)]
+        return clipped if not clipped.empty else None
+
+    if mode == "count":
+        titles = COUNT_TITLES
+        notif_in_window = _in_window(notif_target)
+        death_in_window = _in_window(death_target)
+        if notif_in_window is not None:
+            notif_in_window.plot(ax=axes[1, 0], linewidth=0.0, marker="o", color="k", zorder=3)
+        if death_in_window is not None:
+            death_in_window.plot(ax=axes[1, 1], linewidth=0.0, marker="o", color="k", zorder=3)
+    elif mode == "rate":
+        titles = RATE_TITLES
+        latent_in_window = _in_window(latent_target)
+        pulm_in_window = _in_window(pulm_prev_target)
+        if latent_in_window is not None:
+            latent_in_window.plot(ax=axes[2, 0], linewidth=0.0, marker="o", color="k", zorder=4)
+        if pulm_in_window is not None:
+            pulm_in_window.plot(ax=axes[2, 1], linewidth=0.0, marker="o", color="k", zorder=4)
+    else:
+        raise ValueError(f"Unknown mode '{mode}'. Expected 'count' or 'rate'.")
+
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    for i, (s, label) in enumerate(scenario_labels.items()):
+        totals = scenario_totals[s]
+        color = colors[i % len(colors)]
+        if mode == "count":
+            data = {
+                "prevalence": totals["prevalence"],
+                "incidence": totals["incidence"],
+                "notifications": totals["notifications"],
+                "deaths": totals["deaths"],
+                "latent": totals["latent"],
+                "pulm_prev": totals["pulm_prev"],
+            }
+        else:
+            data = {
+                "prevalence": totals["prevalence"].div(totals["total_pop"], axis=0) * 1e5,
+                "incidence": totals["incidence"].div(totals["total_pop"], axis=0) * 1e5,
+                "notifications": totals["notifications"].div(totals["total_pop"], axis=0) * 1e5,
+                "deaths": totals["deaths"].div(totals["total_pop"], axis=0) * 1e5,
+                "latent": totals["latent"].div(totals["adult_pop"], axis=0) * 1e2,
+                "pulm_prev": totals["pulm_prev"].div(totals["adult_pop"], axis=0) * 1e5,
+            }
+
+        for out, ax in ax_locs.items():
+            series = data[out].loc[
+                (data[out].index >= plot_start) & (data[out].index <= end_time)
+            ]
+            median, low, high = _median_and_ci(series, q_low=q_low, q_high=q_high)
+            ax.fill_between(series.index, low, high, color=color, alpha=0.25, linewidth=0.0)
+            median.plot(ax=ax, color=color, label=label)
+            ax.set_title(titles[out])
+
+    if (
+        mode == "rate"
+        and pulm_prev_target is not None
+        and prev_decline_target is not None
+        and _in_window(pulm_prev_target) is not None
+        and _in_window(prev_decline_target) is not None
+    ):
+        pulm_ax = ax_locs["pulm_prev"]
+        add_pulm_prev_decline_arrow(pulm_ax, pulm_prev_target, prev_decline_target)
+        pulm_ax.relim()
+        pulm_ax.autoscale_view(scalex=False, scaley=True)
+
+    axes[0, 0].legend(loc="upper right")
+    for ax in axes.ravel():
+        ax.set_xlim(plot_start, end_time)
+        ax.set_ylim(bottom=0.0)
+    fig.tight_layout()
+    plt.close()
+    return fig
+
+
 def plot_outputs(
     prev: pd.DataFrame,
     inc: pd.DataFrame,
