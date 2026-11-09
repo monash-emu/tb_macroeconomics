@@ -71,4 +71,6 @@ SCENARIO_PARAMS = [
     {},
     {"acf_coverage": 0.8, "acf_duration": 5.0},
     {"acf_coverage": 0.8, "acf_duration": 10.0},
+    {"acf_coverage": 0.8, "acf_duration": 5.0, "rel_detect_post_acf": 1.5},
+    {"acf_coverage": 0.8, "acf_duration": 10.0, "rel_detect_post_acf": 1.5},
 ]

@@ -39,6 +39,7 @@ BASE_PARAMS = {
     "rel_detect_2007": 0.6,
     "rel_detect_1986": 0.6,
     "rel_detect_2021": 0.5,
+    "rel_detect_post_acf": 1.0,
     "prop_lowinf_bactpos": 2.0 / 3.0,
     "mixing_dist_sd": 10.0,
 }
@@ -117,6 +118,7 @@ PARAM_NAMES = {
     "rel_detect_2007": "relative detection rate in 2007 compared to current",
     "rel_detect_1986": "relative detection rate in 1986 compared to 2007",
     "rel_detect_2021": "COVID-19-related detection reduction",
+    "rel_detect_post_acf": "relative passive detection rate after active case finding",
     "rx_duration": "treatment duration",
     "mixing_dist_sd": "mixing matrix distance standard deviation",
 }

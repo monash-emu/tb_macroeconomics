@@ -43,16 +43,26 @@ def add_detection(
     by the "{{rel_detect_2021}}" parameter, remains at that reduced rate
     through most of the year, and returns to the current rate at the 
     start of 2022.
+    From the "{{acf_start}}" year, the passive detection rate then
+    scales over "{{acf_duration}}" years from the current rate to the
+    current rate multiplied by "{{rel_detect_post_acf}}", and remains
+    at that elevated rate thereafter. With the default value of one
+    for "{{rel_detect_post_acf}}", this segment is flat and has no
+    effect; scenario analyses can raise it to represent a sustained
+    improvement in routine case detection after active case finding.
     """
     detect_rate_now = Parameter("detect_rate_current", 0.0)
     detect_rate_2007 = detect_rate_now * Parameter("rel_detect_2007", 0.0)
     detect_rate_1986 = detect_rate_2007 * Parameter("rel_detect_1986", 0.0)
     detect_rate_1957 = 0.0
     detect_rate_covid = detect_rate_now * Parameter("rel_detect_2021", 0.0)
+    detect_rate_post_acf = detect_rate_now * Parameter("rel_detect_post_acf", 0.0)
 
     sim_time = Time + start_time
 
-    def detect_curve(t, r1957, r1986, r2007, r_now, r_covid):
+    def detect_curve(
+        t, r1957, r1986, r2007, r_now, r_covid, r_post, t_acf_start, acf_duration
+    ):
         times = get_scale_data(
             jnp.array(
                 [
@@ -64,6 +74,8 @@ def add_detection(
                     2021.25,
                     2021.75,
                     2022.0,
+                    t_acf_start,
+                    t_acf_start + acf_duration,
                 ]
             )
         )
@@ -78,6 +90,8 @@ def add_detection(
                     r_covid,
                     r_covid,
                     r_now,
+                    r_now,
+                    r_post,
                 ]
             )
         )
@@ -90,6 +104,9 @@ def add_detection(
         detect_rate_2007,
         detect_rate_now,
         detect_rate_covid,
+        detect_rate_post_acf,
+        Parameter("acf_start", 0.0),
+        Parameter("acf_duration", 0.0),
     )
 
     source = (disease_state["active"], clin_strat["clin"])
