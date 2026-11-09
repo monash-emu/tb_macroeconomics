@@ -43,13 +43,13 @@ def add_detection(
     by the "{{rel_detect_2021}}" parameter, remains at that reduced rate
     through most of the year, and returns to the current rate at the 
     start of 2022.
-    From the "{{acf_start}}" year, the passive detection rate then
-    scales over "{{acf_duration}}" years from the current rate to the
-    current rate multiplied by "{{rel_detect_post_acf}}", and remains
-    at that elevated rate thereafter. With the default value of one
-    for "{{rel_detect_post_acf}}", this segment is flat and has no
-    effect; scenario analyses can raise it to represent a sustained
-    improvement in routine case detection after active case finding.
+    From the commencement of the ACF intervention in {{acf_start}}, 
+    the passive detection rate scales over the {{acf_duration}} years 
+    of the ACF intervention to reach a rate that is 
+    {{rel_detect_post_acf}}-fold greater than the pre-ACF baseline rate 
+    and remains at that elevated rate thereafter. 
+    (Therefore, this relative increase is set to one for the scenarios
+    that do not involve a post-ACF rate increase.)
     """
     detect_rate_now = Parameter("detect_rate_current", 0.0)
     detect_rate_2007 = detect_rate_now * Parameter("rel_detect_2007", 0.0)
