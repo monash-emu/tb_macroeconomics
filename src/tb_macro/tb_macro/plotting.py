@@ -768,6 +768,119 @@ def plot_infection_source_props(
     return fig
 
 
+def plot_incidence_source_props(
+    results: dict,
+    start: float,
+    end: float,
+) -> plt.figure:
+    """Stacked area of inflows to incipient infection by source.
+
+    Incipient infection is memoryless, so these are also the shares of
+    progression to disease arising from primary infection, reinfection
+    and breakdown of long-standing (contained) infection.
+
+    Args:
+        results: Results from a single model run
+        start: First year to plot
+        end: Last year to plot
+
+    Returns:
+        The figure
+    """
+    primary = _managed_to_annual(results["flows"]["infect_mtb_naive"]) + _managed_to_annual(
+        results["flows"]["seed_peak"]
+    )
+    reinfection = sum(
+        _managed_to_annual(results["flows"][f"infect_{c}"])
+        for c in INFECT_COMPS
+        if c != "mtb_naive"
+    )
+    breakdown = _managed_to_annual(results["flows"]["breakdown"])
+    df = pd.DataFrame(
+        {"primary infection": primary, "reinfection": reinfection, "breakdown": breakdown}
+    ).loc[start:end].clip(lower=0.0)
+    prop_df = df.div(df.sum(axis=1), axis=0).dropna()
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    prop_df.plot.area(ax=ax)
+    fig.suptitle("source of incident disease")
+    ax.set_xlim(start, end)
+    ax.set_ylim(0.0, 1.0)
+    ax.set_ylabel("proportion")
+    ax.legend(title="source", loc="lower left")
+    fig.tight_layout()
+    plt.close()
+    return fig
+
+
+def plot_run_overlay(
+    runs: Dict[str, dict],
+    disease_state: Stratification,
+    age_strat: Stratification,
+    infect_strat: Stratification,
+    who_mort: pd.Series,
+    start: float,
+    end: float,
+    proj_end: float,
+) -> plt.figure:
+    """Overlay several runs against the calibration targets and incidence.
+
+    Args:
+        runs: Model results keyed by run label
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        infect_strat: The infectiousness stratification object
+        who_mort: The WHO estimates of annual TB deaths
+        start: First year to plot
+        end: Last year to plot for the target panels
+        proj_end: Last year to plot for the incidence projection panel
+
+    Returns:
+        The figure
+    """
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
+    fig, axes = plt.subplots(3, 2, figsize=(12, 12))
+    panels = [
+        (axes[0, 0], "notifications per year", NOTIF_TARGET, end),
+        (axes[0, 1], "TB deaths per year", who_mort, end),
+        (axes[1, 0], "percentage of adults ever infected", LATENT_TARGET, end),
+        (axes[1, 1], "adult pulmonary prevalence per 100,000", PULM_PREV_TARGET, end),
+        (axes[2, 0], "high-infectious share of adult pulmonary prevalence (%)", INF_PREV_TARGET * 100.0, end),
+        (axes[2, 1], "incidence per 100,000", None, proj_end),
+    ]
+    for i, (label, results) in enumerate(runs.items()):
+        high_inf, pulm_prev, adult_pop = _adult_pulm_prev_series(
+            results, disease_state, age_strat, infect_strat
+        )
+        latent = _managed_to_annual(
+            results["compartments"].query(compartment=(disease_state[INFECTED_STATES], adult_ages))
+        ) / adult_pop * 100.0
+        series = [
+            _managed_to_annual(results["flows"]["detection"]),
+            _managed_to_annual(results["flows"]["tb_mortality"])
+            + _managed_to_annual(results["flows"]["rx_death"]),
+            latent,
+            pulm_prev / adult_pop * 1e5,
+            high_inf / pulm_prev * 100.0,
+            _managed_to_annual(results["flows"]["progression"])
+            / _managed_to_annual(results["compartments"])
+            * 1e5,
+        ]
+        for (ax, _, _, panel_end), values in zip(panels, series):
+            _midyear_window(values, start, panel_end).plot(ax=ax, label=label, color=f"C{i}")
+    for ax, title, target, panel_end in panels:
+        if target is not None:
+            target.plot(ax=ax, linewidth=0.0, marker="o", color="k", label="target", zorder=4)
+        ax.set_ylim(bottom=0.0)
+        ax.set_xlim(start, panel_end)
+        ax.set_title(title)
+        ax.legend()
+    add_pulm_prev_decline_arrow(axes[1, 1], PULM_PREV_TARGET, PREV_DECLINE_TARGET)
+    fig.tight_layout()
+    plt.close()
+    return fig
+
+
 def plot_single_age_s_matrix_components(
     fert_padded: pd.DataFrame,
     params: dict,

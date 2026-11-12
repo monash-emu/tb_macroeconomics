@@ -8,7 +8,15 @@ from xarray.core import dataset
 
 from summer3.epi import ManagedArray, Stratification, CompartmentalEpiModel
 
-from tb_macro.constants import PREV_STATES, INFECTED_STATES, AGE_STRATA, SOLVER_KWARGS
+from tb_macro.constants import (
+    PREV_STATES,
+    INFECTED_STATES,
+    INFECT_COMPS,
+    AGE_STRATA,
+    SOLVER_KWARGS,
+    START_TIME,
+    YOUNG_END_AGE,
+)
 from tb_macro.parameters import BASE_PARAMS
 from tb_macro.utils import add_midyear_points
 
@@ -540,3 +548,80 @@ def rerun_model_for_outputs(
                     out.columns.name = "age_group"
                 outputs[s][ind].append(out)
     return outputs, sample_labels
+
+
+def get_natural_history_summary(
+    results: dict,
+    params: dict,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    years: List[float],
+) -> pd.DataFrame:
+    """Summarise the infection and progression dynamics of a single run.
+
+    Args:
+        results: The outputs of a single model run
+        params: The parameters the run was made with
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        years: The calendar years at which to report time-varying quantities
+
+    Returns:
+        One row per quantity, with a column for each requested year
+        (time-invariant quantities are repeated across columns)
+
+    Notes:
+    -----
+    Because breakdown returns people to incipient infection rather than
+    directly to disease, the breakdown rate is not interpretable on its own.
+    The effective adult rate of progression from contained infection is the
+    breakdown rate multiplied by the probability that an incipient episode
+    progresses rather than being contained (ignoring background mortality).
+    Incipient infection is memoryless, so the share of inflows to it from
+    breakdown is also the share of progression to disease that arises from
+    long-standing infection.
+    """
+    def annual(managed) -> np.ndarray:
+        return np.asarray(managed.sum(to_dims="time").data)
+
+    flows = results["flows"]
+    comps = results["compartments"]
+    primary = annual(flows["infect_mtb_naive"]) + annual(flows["seed_peak"])
+    reinfection = sum(
+        annual(flows[f"infect_{c}"]) for c in INFECT_COMPS if c != "mtb_naive"
+    )
+    breakdown = annual(flows["breakdown"])
+    incipient_inflow = primary + reinfection + breakdown
+    total_pop = annual(comps)
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
+    adult_pop = annual(comps.query(compartment=adult_ages))
+    naive = annual(comps.query(compartment=disease_state["mtb_naive"]))
+
+    def adult_pct(states) -> np.ndarray:
+        return 100.0 * annual(comps.query(compartment=(disease_state[states], adult_ages))) / adult_pop
+
+    series = {
+        "incidence per 100,000": 1e5 * annual(flows["progression"]) / total_pop,
+        "share of incidence from breakdown (%)": 100.0 * breakdown / incipient_inflow,
+        "share of incidence from primary infection (%)": 100.0 * primary / incipient_inflow,
+        "share of incidence from reinfection (%)": 100.0 * reinfection / incipient_inflow,
+        "annual risk of primary infection (%)": 100.0 * primary / naive,
+        "adults ever infected (%)": adult_pct(INFECTED_STATES),
+        "adults incipient (%)": adult_pct("incipient"),
+        "adults contained (%)": adult_pct("contained"),
+        "adults cleared (%)": adult_pct("cleared"),
+    }
+    idx = [int(y - START_TIME) for y in years]
+    table = pd.DataFrame({k: v[idx] for k, v in series.items()}, index=years).T
+
+    prog = params["progression_rate_age15"]
+    p_prog = prog / (prog + params["containment_rate_age15"])
+    late_rate = params["breakdown_rate"] * p_prog
+    fixed = {
+        "adult early progression probability (%)": 100.0 * p_prog,
+        "adult late progression rate (/yr)": late_rate,
+        "late progression before clearance (%)": 100.0 * late_rate / (late_rate + params["clearance_rate"]),
+    }
+    for k, v in fixed.items():
+        table.loc[k] = v
+    return table

@@ -438,6 +438,45 @@ def get_mixing_log_likelihood(
     return dist.Normal(0.0, params["mixing_dist_sd"]).log_prob(distance)
 
 
+def get_log_likelihood_components(
+    results: dict,
+    disease_state: Stratification,
+    age_strat: Stratification,
+    infect_strat: Stratification,
+    who_mort: pd.Series,
+) -> dict[str, float]:
+    """Get the epidemiological log-likelihood contributions of a single run.
+
+    For inspecting runs outside of calibration. The mixing contribution is
+    excluded, because it depends only on the mixing parameters; it can be
+    recovered by subtracting the sum of these from the full log-likelihood.
+
+    Args:
+        results: The outputs of a single model run
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+        infect_strat: The infectiousness stratification object
+        who_mort: The WHO estimates of annual TB deaths
+
+    Returns:
+        Each epidemiological contribution, keyed by target name
+    """
+    return {
+        "latent": float(get_latent_log_likelihood(results, disease_state, age_strat)),
+        "notifications": float(get_notification_log_likelihood(results)),
+        "deaths": float(get_death_log_likelihood(results, who_mort)),
+        "pulm. prevalence": float(
+            get_pulm_prev_log_likelihood(results, disease_state, age_strat, infect_strat)
+        ),
+        "prevalence decline": float(
+            get_prev_decline_log_likelihood(results, disease_state, age_strat, infect_strat)
+        ),
+        "high-infectious share": float(
+            get_infprop_log_likelihood(results, disease_state, age_strat, infect_strat)
+        ),
+    }
+
+
 def make_log_likelihood(
     epi_model: CompartmentalEpiModel,
     disease_state: Stratification,
