@@ -55,6 +55,8 @@ ISO3 = "VNM"
 # Times
 START_TIME = 1800.0
 END_TIME = 2101.0
+# Calibration runs stop here: last target is 2024.5, so the solve needs the 2025 point
+CALIB_END_TIME = 2026.0
 CALENDAR_YEAR_MIDPOINT = 0.5
 OUTPUT_TIME_STEP = 1.0
 
@@ -65,6 +67,7 @@ MIXING_TARGET_YEAR = 2025.0
 CANBERRA_EPS = 1e-10
 SOLVER_KWARGS = {"max_steps": 4000}
 N_CHAINS_REMOTE = 8
+N_SAMPLE_CHUNK = 50  # Draws per chunk between checkpoints on remote runs
 N_RUNS_LOCAL = 40
 N_OUTPUT_SAMPLES = 40
 SCENARIO_PARAMS = [

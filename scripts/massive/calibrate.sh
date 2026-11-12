@@ -10,4 +10,4 @@
 
 cd "$SCRIPT_DIR/../.."
 
-pixi run python scripts/massive/calibrate.py "$SLURM_JOB_ID" "$1"
+pixi run python scripts/massive/calibrate.py "$SLURM_JOB_ID" "$@"
