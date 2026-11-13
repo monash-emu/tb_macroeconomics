@@ -13,6 +13,7 @@ from summer3.epi import CompartmentalEpiModel, Stratification
 from tb_macro.constants import (
     AGE_STRATA,
     COUNT_LOG_SD,
+    DEATH_LOG_SD,
     INFECTED_STATES,
     ISO3,
     MIXING_TARGET_YEAR,
@@ -78,6 +79,18 @@ def _logit_normal_log_prob(modelled, target, sd=PROP_LOGIT_SD):
     return dist.Normal(_logit(jnp.asarray(target)), sd).log_prob(_logit(modelled))
 
 
+def get_adult_test_pos_weights() -> dict[str, float]:
+    """TST/IGRA sensitivity applied to each infected compartment.
+
+    Cleared infection takes the "test_sens_cleared" value and every other
+    infected compartment takes "test_sens_infected", both from BASE_PARAMS.
+    """
+    return {
+        s: BASE_PARAMS["test_sens_cleared"] if s == "cleared" else BASE_PARAMS["test_sens_infected"]
+        for s in INFECTED_STATES
+    }
+
+
 def get_latent_log_likelihood(
     results: dict,
     disease_state: Stratification,
@@ -95,16 +108,21 @@ def get_latent_log_likelihood(
 
     Notes:
     -----
-    The proportion of adults ever infected with _Mtb_ was compared
-    against the interferon-gamma release assay survey of people aged
-    {{YOUNG_END_AGE}} years and over reported by Marks et al.
+    The proportion of adults with immunological evidence of _Mtb_ infection
+    was compared against the interferon-gamma release assay survey of people
+    aged {{YOUNG_END_AGE}} years and over reported by Marks et al.
     (_International Journal of Tuberculosis and Lung Disease_).
 
-    The corresponding modelled quantity is everyone previously 
-    infected with _Mtb_, which is represented by 
-    all modelled compartments other than _Mtb_-naive. 
-    That is, the {{INFECTED_STATES}} states among adults,
-    divided by the adult population at the time of the survey.
+    Everyone ever infected with _Mtb_ (all modelled compartments other than
+    _Mtb_-naive, that is, the {{INFECTED_STATES}} states) is considered
+    to have been infected, but the test does not detect all of these people.
+    The modelled quantity is therefore the expected number of
+    adults testing positive, taking the "{{test_sens_infected}}" for
+    everyone with current or past infection other than those who have
+    cleared infection, and the lower "{{test_sens_cleared}}" for those
+    who have cleared, reflecting reversion of the immune response
+    after clearance. This is divided by the adult population 
+    at the time of the survey.
 
     As for other proportion targets, this quantity was compared on 
     the log-odds scale, with a standard deviation of {{PROP_LOGIT_SD}}.
@@ -112,13 +130,17 @@ def get_latent_log_likelihood(
     target_time = LATENT_TARGET.index[0]
     target_val = LATENT_TARGET.iloc[0] / 1e2
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    latent = interp_annual_output(
-        results["compartments"]
-        .query(compartment=(disease_state[INFECTED_STATES], adult_ages))
-        .sum(to_dims="time")
-        .data,
-        target_time,
-        START_TIME,
+    test_pos = sum(
+        sens
+        * interp_annual_output(
+            results["compartments"]
+            .query(compartment=(disease_state[state], adult_ages))
+            .sum(to_dims="time")
+            .data,
+            target_time,
+            START_TIME,
+        )
+        for state, sens in get_adult_test_pos_weights().items()
     )
     total = interp_annual_output(
         results["compartments"]
@@ -128,8 +150,8 @@ def get_latent_log_likelihood(
         target_time,
         START_TIME,
     )
-    latent_prop = latent / (total + _EPS)
-    return _logit_normal_log_prob(latent_prop, target_val)
+    test_pos_prop = test_pos / (total + _EPS)
+    return _logit_normal_log_prob(test_pos_prop, target_val)
 
 
 def get_notification_log_likelihood(results: dict):
@@ -181,16 +203,17 @@ def get_death_log_likelihood(results: dict, who_mort: pd.Series):
     Deaths occurring in the community and during treatment are 
     summed for comparison.
     
-    As for notifications, these counts are
-    compared on the log scale with a standard deviation of {{COUNT_LOG_SD}}, 
+    As for notifications, these counts are compared on the log scale
     and averaged over the years for which estimates are available.
+    However, because the WHO estimates are themselves modelled and uncertain,
+    a wider standard deviation of {{DEATH_LOG_SD}} is used.
     """
     mort_results = results["flows"]["tb_mortality"].sum(to_dims="time").data
     community_deaths = interp_annual_output(mort_results, who_mort.index, START_TIME)
     rx_mort_results = results["flows"]["rx_death"].sum(to_dims="time").data
     rx_deaths = interp_annual_output(rx_mort_results, who_mort.index, START_TIME)
     deaths = community_deaths + rx_deaths
-    return _log_normal_log_prob(deaths, who_mort.to_numpy()).mean()
+    return _log_normal_log_prob(deaths, who_mort.to_numpy(), DEATH_LOG_SD).mean()
 
 
 def get_adult_pulm_prev(

@@ -91,7 +91,7 @@ def _interpolate_notes_str(text: str, namespace: dict[str, str]) -> str:
 def get_func_notes(function: Callable) -> str:
     """Return the Notes section of a function, with code values interpolated.
     The docstring should include a Google-style Notes section. Placeholders
-    such as {{breakdown_rate}} are to be replaced from variables in constants.py.
+    such as {{clearance_rate}} are to be replaced from variables in constants.py.
 
     Args:
         function: The function containing the notes to render

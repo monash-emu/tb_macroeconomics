@@ -6,7 +6,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=4096
+#SBATCH --mem-per-cpu=8192
 
 cd "$SCRIPT_DIR/../.."
 

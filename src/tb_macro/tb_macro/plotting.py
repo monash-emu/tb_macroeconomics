@@ -14,14 +14,18 @@ from summer3.epi import Stratification, ManagedArray
 from tb_macro.constants import (
     AGE_STRATA,
     INFECT_COMPS,
-    INFECTED_STATES,
     ISO3,
     MIXING_TARGET_YEAR,
     YOUNG_END_AGE,
 )
 from tb_macro.inputs import get_norm_conmat
 from tb_macro.mixing import build_s_matrix_single_age_components, canberra_distance
-from tb_macro.outputs import get_complete_strat_props, get_partial_strat_props
+from tb_macro.outputs import (
+    get_adult_test_pos_pct,
+    get_complete_strat_props,
+    get_partial_strat_props,
+    managed_to_annual,
+)
 from tb_macro.parameters import BASE_PARAMS, PARAM_ABBREVS, PARAM_BOUNDS, PARAM_NAMES
 from tb_macro.targets import (
     INF_PREV_TARGET,
@@ -494,16 +498,6 @@ def plot_age_population_comparison(results, target_pop, age_strat, years):
     return fig
 
 
-def _managed_to_annual(managed) -> pd.Series:
-    """Collapse a managed output onto an annual float-indexed series."""
-    series = managed.sum(to_dims="time").to_pandas_df().squeeze()
-    if isinstance(series, pd.DataFrame):
-        series = series.iloc[:, 0]
-    series = series.astype(float)
-    series.index = series.index.astype(float)
-    return series
-
-
 def _midyear_window(series: pd.Series, start: float, end: float) -> pd.Series:
     return annual_to_midyear(series).loc[start:end]
 
@@ -521,18 +515,18 @@ def _adult_pulm_prev_series(results, disease_state, age_strat, infect_strat):
     low-infectious adults, and adults on treatment, over the adult population.
     """
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    high_inf = _managed_to_annual(
+    high_inf = managed_to_annual(
         results["compartments"].query(compartment=(infect_strat["high"], adult_ages))
     )
-    low_inf = _managed_to_annual(
+    low_inf = managed_to_annual(
         results["compartments"].query(compartment=(infect_strat["low"], adult_ages))
     )
-    on_rx = _managed_to_annual(
+    on_rx = managed_to_annual(
         results["compartments"].query(
             compartment=(disease_state["treatment"], adult_ages)
         )
     )
-    adult_pop = _managed_to_annual(
+    adult_pop = managed_to_annual(
         results["compartments"].query(compartment=adult_ages)
     )
     pulm_prev = high_inf + low_inf * BASE_PARAMS["prop_lowinf_bactpos"] + on_rx
@@ -567,23 +561,14 @@ def plot_single_run_comparison(
 
     Mixing is plotted separately by ``plot_mixing_target_comparison``.
     """
-    notif = _managed_to_annual(results["flows"]["detection"])
-    deaths = _managed_to_annual(results["flows"]["tb_mortality"]) + _managed_to_annual(
+    notif = managed_to_annual(results["flows"]["detection"])
+    deaths = managed_to_annual(results["flows"]["tb_mortality"]) + managed_to_annual(
         results["flows"]["rx_death"]
     )
     high_inf, pulm_prev, adult_pop = _adult_pulm_prev_series(
         results, disease_state, age_strat, infect_strat
     )
-    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
-    latent = (
-        _managed_to_annual(
-            results["compartments"].query(
-                compartment=(disease_state[INFECTED_STATES], adult_ages)
-            )
-        )
-        / adult_pop
-        * 100.0
-    )
+    latent = get_adult_test_pos_pct(results, disease_state, age_strat)
     pulm_prev_rate = pulm_prev / adult_pop * 1e5
     inf_prop = high_inf / pulm_prev * 100.0
 
@@ -608,7 +593,7 @@ def plot_single_run_comparison(
         axes[1, 0],
         _midyear_window(latent, start, end),
         LATENT_TARGET,
-        "percentage of adults with latent infection",
+        "percentage of adults TST/IGRA-positive",
         start,
         end,
     )
@@ -748,10 +733,10 @@ def plot_infection_source_props(
     Returns:
         The figure
     """
-    total_pop = _managed_to_annual(results["compartments"])
+    total_pop = managed_to_annual(results["compartments"])
     rates = {}
     for comp in INFECT_COMPS:
-        infections = _managed_to_annual(results["flows"][f"infect_{comp}"])
+        infections = managed_to_annual(results["flows"][f"infect_{comp}"])
         rates[_INFECT_SOURCE_LABELS[comp]] = infections / total_pop * 1e5
     df = pd.DataFrame(rates).loc[start:end].clip(lower=0.0)
     prop_df = df.div(df.sum(axis=1), axis=0).dropna()
@@ -787,15 +772,15 @@ def plot_incidence_source_props(
     Returns:
         The figure
     """
-    primary = _managed_to_annual(results["flows"]["infect_mtb_naive"]) + _managed_to_annual(
+    primary = managed_to_annual(results["flows"]["infect_mtb_naive"]) + managed_to_annual(
         results["flows"]["seed_peak"]
     )
     reinfection = sum(
-        _managed_to_annual(results["flows"][f"infect_{c}"])
+        managed_to_annual(results["flows"][f"infect_{c}"])
         for c in INFECT_COMPS
         if c != "mtb_naive"
     )
-    breakdown = _managed_to_annual(results["flows"]["breakdown"])
+    breakdown = managed_to_annual(results["flows"]["breakdown"])
     df = pd.DataFrame(
         {"primary infection": primary, "reinfection": reinfection, "breakdown": breakdown}
     ).loc[start:end].clip(lower=0.0)
@@ -838,12 +823,11 @@ def plot_run_overlay(
     Returns:
         The figure
     """
-    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
     fig, axes = plt.subplots(3, 2, figsize=(12, 12))
     panels = [
         (axes[0, 0], "notifications per year", NOTIF_TARGET, end),
         (axes[0, 1], "TB deaths per year", who_mort, end),
-        (axes[1, 0], "percentage of adults ever infected", LATENT_TARGET, end),
+        (axes[1, 0], "percentage of adults TST/IGRA-positive", LATENT_TARGET, end),
         (axes[1, 1], "adult pulmonary prevalence per 100,000", PULM_PREV_TARGET, end),
         (axes[2, 0], "high-infectious share of adult pulmonary prevalence (%)", INF_PREV_TARGET * 100.0, end),
         (axes[2, 1], "incidence per 100,000", None, proj_end),
@@ -852,18 +836,16 @@ def plot_run_overlay(
         high_inf, pulm_prev, adult_pop = _adult_pulm_prev_series(
             results, disease_state, age_strat, infect_strat
         )
-        latent = _managed_to_annual(
-            results["compartments"].query(compartment=(disease_state[INFECTED_STATES], adult_ages))
-        ) / adult_pop * 100.0
+        latent = get_adult_test_pos_pct(results, disease_state, age_strat)
         series = [
-            _managed_to_annual(results["flows"]["detection"]),
-            _managed_to_annual(results["flows"]["tb_mortality"])
-            + _managed_to_annual(results["flows"]["rx_death"]),
+            managed_to_annual(results["flows"]["detection"]),
+            managed_to_annual(results["flows"]["tb_mortality"])
+            + managed_to_annual(results["flows"]["rx_death"]),
             latent,
             pulm_prev / adult_pop * 1e5,
             high_inf / pulm_prev * 100.0,
-            _managed_to_annual(results["flows"]["progression"])
-            / _managed_to_annual(results["compartments"])
+            managed_to_annual(results["flows"]["progression"])
+            / managed_to_annual(results["compartments"])
             * 1e5,
         ]
         for (ax, _, _, panel_end), values in zip(panels, series):

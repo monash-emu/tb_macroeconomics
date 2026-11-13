@@ -99,9 +99,15 @@ def add_natural_history(
     Notes:
     -----
     After infection is contained, people may clear infection
-    or undergo endogenous reactivation (breakdown), according to 
-    the "{{clearance_rate}}" and "{{breakdown_rate}}" parameters, 
-    respectively. Among people with active TB, 
+    at the "{{clearance_rate}}" or undergo endogenous reactivation
+    (breakdown), returning to incipient infection. Because only a proportion
+    of incipient episodes progress to disease, the breakdown rate is
+    not calibrated directly. Instead, it is derived as the
+    "{{late_progression_rate}}" divided by the
+    "{{early_prog_prop_age15}}", such that the effective adult rate of
+    progression from contained infection to disease equals the
+    late progression rate (ignoring background mortality).
+    The same breakdown rate applies at all ages. Among people with active TB, 
     infectiousness may increase or decrease at 
     the "{{infectiousness_gain_rate}}" and
     "{{infectiousness_loss_rate}}", respectively.
@@ -123,7 +129,10 @@ def add_natural_history(
 
     source = disease_state["contained"]
     dest = disease_state["incipient"]
-    rate = Parameter("breakdown_rate", 0.0)
+    rate = defer(lambda late_rate, p_prog: late_rate / p_prog)(
+        Parameter("late_progression_rate", 0.0),
+        Parameter("early_prog_prop_age15", 0.0),
+    )
     breakdown = TransitionFlow("breakdown", source, dest, rate)
     epi_model.add_flow(breakdown)
 
@@ -404,11 +413,14 @@ def add_latency_flows(
     -----
     From incipient infection, people may contain infection or
     progress to active disease. Both rates vary according to 
-    the latency age bands, using the "{{containment_rate_age0}}",
-    "{{containment_rate_age5}}" and "{{containment_rate_age15}}"
-    parameters for containment, and the "{{progression_rate_age0}}",
-    "{{progression_rate_age5}}" and "{{progression_rate_age15}}"
-    parameters for progression. All progression is to subclinical disease.
+    the latency age bands, using the "{{containment_rate_age0}}"
+    and "{{containment_rate_age5}}" parameters for containment, and the
+    "{{progression_rate_age0}}" and "{{progression_rate_age5}}"
+    parameters for progression in children. For adults, the
+    "{{incipient_exit_rate_age15}}" is split between the two
+    destinations according to the "{{early_prog_prop_age15}}", so that
+    the adult proportion progressing is calibrated directly while the
+    mean duration of incipient infection is held fixed. All progression is to subclinical disease.
     A fraction of new disease episodes, given by 
     the "{{progression_prop_infectious}}", enter 
     the high infectiousness stratum, with the remainder entering 
@@ -417,10 +429,12 @@ def add_latency_flows(
     source = disease_state["incipient"]
     dest = disease_state["contained"]
     latency_age_adj = get_latency_age_adj(age_strat)
+    adult_exit = Parameter("incipient_exit_rate_age15", 0.0)
+    adult_p_prog = Parameter("early_prog_prop_age15", 0.0)
     contain_func = defer(latency_age_adj)(
         Parameter("containment_rate_age0", 0.0),
         Parameter("containment_rate_age5", 0.0),
-        Parameter("containment_rate_age15", 0.0),
+        defer(lambda exit_rate, p_prog: exit_rate * (1.0 - p_prog))(adult_exit, adult_p_prog),
     )
     contain = TransitionFlow("containment", source, dest, contain_func)
     epi_model.add_flow(contain)
@@ -435,7 +449,7 @@ def add_latency_flows(
     prog_func = defer(latency_age_adj)(
         Parameter("progression_rate_age0", 0.0),
         Parameter("progression_rate_age5", 0.0),
-        Parameter("progression_rate_age15", 0.0),
+        defer(lambda exit_rate, p_prog: exit_rate * p_prog)(adult_exit, adult_p_prog),
     )
     prog = TransitionFlow("progression", source, dest, prog_func)
     inf_prog_param = Parameter("progression_prop_infectious", 0.0)

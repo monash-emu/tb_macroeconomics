@@ -18,6 +18,7 @@ from tb_macro.constants import (
     YOUNG_END_AGE,
 )
 from tb_macro.parameters import BASE_PARAMS
+from tb_macro.calibration import get_adult_test_pos_weights
 from tb_macro.utils import add_midyear_points
 
 
@@ -84,6 +85,45 @@ def get_share_folder_file_path(
     run_path = output_path / run_folder
     run_path.mkdir(exist_ok=True)
     return run_path
+
+
+def managed_to_annual(managed: ManagedArray) -> pd.Series:
+    """Collapse a managed output onto an annual float-indexed series."""
+    series = managed.sum(to_dims="time").to_pandas_df().squeeze()
+    if isinstance(series, pd.DataFrame):
+        series = series.iloc[:, 0]
+    series = series.astype(float)
+    series.index = series.index.astype(float)
+    return series
+
+
+def get_adult_test_pos_pct(
+    results: dict,
+    disease_state: Stratification,
+    age_strat: Stratification,
+) -> pd.Series:
+    """Annual percentage of adults expected to test TST/IGRA-positive.
+
+    Args:
+        results: The outputs of a single model run
+        disease_state: The compartmental stratification object
+        age_strat: The age stratification object
+
+    Returns:
+        The percentage on the annual solver grid
+
+    Notes:
+    -----
+    Each infected compartment among adults is weighted by the test
+    sensitivity applied to it, as for the latent infection target.
+    """
+    comps = results["compartments"]
+    adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
+    test_pos = sum(
+        sens * managed_to_annual(comps.query(compartment=(disease_state[state], adult_ages)))
+        for state, sens in get_adult_test_pos_weights().items()
+    )
+    return test_pos / managed_to_annual(comps.query(compartment=adult_ages)) * 100.0
 
 
 # Functions for extracting outputs from results with common signatures
@@ -170,6 +210,25 @@ def get_age_latent(results, age_strat, disease_state, clin_strat, infect_strat):
     """
     infected_states = results["compartments"].query(compartment=disease_state[INFECTED_STATES])
     return infected_states.sumcats(compartment=age_strat.categories())
+
+
+def get_age_test_pos(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Expected TST/IGRA-positive population by modelled age group.
+
+    Notes:
+    -----
+    Each infected compartment is weighted by the test sensitivity
+    applied to it, as described for the latent infection target.
+    """
+    comps = results["compartments"]
+    by_age = [
+        comps.query(compartment=disease_state[state]).sumcats(compartment=age_strat.categories()) * sens
+        for state, sens in get_adult_test_pos_weights().items()
+    ]
+    total = by_age[0]
+    for arr in by_age[1:]:
+        total = total + arr
+    return total
 
 
 def get_age_notifs(results, age_strat, disease_state, clin_strat, infect_strat):
@@ -527,6 +586,7 @@ def rerun_model_for_outputs(
         "prevalence": get_age_prev,
         "pulm_prev": get_age_pulm_prev,
         "latent": get_age_latent,
+        "test_pos": get_age_test_pos,
         "notifications": get_age_notifs,
         "deaths": get_age_deaths,
         "age_pop": get_age_pop,
@@ -614,12 +674,12 @@ def get_natural_history_summary(
     idx = [int(y - START_TIME) for y in years]
     table = pd.DataFrame({k: v[idx] for k, v in series.items()}, index=years).T
 
-    prog = params["progression_rate_age15"]
-    p_prog = prog / (prog + params["containment_rate_age15"])
-    late_rate = params["breakdown_rate"] * p_prog
+    p_prog = params["early_prog_prop_age15"]
+    late_rate = params["late_progression_rate"]
     fixed = {
         "adult early progression probability (%)": 100.0 * p_prog,
         "adult late progression rate (/yr)": late_rate,
+        "breakdown rate (/yr)": late_rate / p_prog,
         "late progression before clearance (%)": 100.0 * late_rate / (late_rate + params["clearance_rate"]),
     }
     for k, v in fixed.items():
