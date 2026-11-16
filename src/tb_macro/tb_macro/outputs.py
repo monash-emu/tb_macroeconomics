@@ -231,6 +231,67 @@ def get_age_test_pos(results, age_strat, disease_state, clin_strat, infect_strat
     return total
 
 
+def get_age_inflow_recent(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Inflows to incipient infection from new infection by modelled age group.
+
+    Notes:
+    -----
+    Comprises primary infection of the _Mtb_-naive (including seeding)
+    and reinfection of the {{INFECT_COMPS}} compartments.
+    """
+    flows = results["flows"]
+    total = flows["seed_peak"].sumcats(source=age_strat.categories())
+    for comp in INFECT_COMPS:
+        total = total + flows[f"infect_{comp}"].sumcats(source=age_strat.categories())
+    return total
+
+
+def get_age_inflow_breakdown(results, age_strat, disease_state, clin_strat, infect_strat):
+    """Inflows to incipient infection from breakdown of contained infection by modelled age group."""
+    return results["flows"]["breakdown"].sumcats(source=age_strat.categories())
+
+
+def get_recent_infection_share(
+    scen_out: pd.DataFrame,
+    min_age: int | None = None,
+) -> pd.DataFrame:
+    """Percentage of incident TB attributable to recent infection, by posterior sample.
+
+    Args:
+        scen_out: One scenario of the collated outputs, with column levels
+            indicator / sample / agegroup
+        min_age: If given, restrict to age groups starting at or above this age
+
+    Returns:
+        Percentages with time as index and samples as columns
+
+    Notes:
+    -----
+    Progression to disease occurs only from incipient infection, which is
+    entered through new infection (primary infection or reinfection) or
+    through breakdown of contained infection. Because exit from incipient
+    infection is memoryless, within each age group the share of incident
+    disease arising from new infection equals the share of inflows to
+    incipient infection that come from new infection. These within-age
+    shares are weighted by age-specific incidence before summing, because
+    the probability of progressing from incipient infection differs
+    markedly between children and adults (ageing during the short
+    incipient period is ignored). Disease arising from new infection is
+    referred to as attributable to recent infection, and the remainder
+    as attributable to breakdown of long-standing infection.
+    """
+    inc = scen_out["incidence"]
+    recent = scen_out["inflow_recent"]
+    breakdown = scen_out["inflow_breakdown"]
+    if min_age is not None:
+        keep = inc.columns.get_level_values("agegroup").astype(int) >= min_age
+        inc, recent, breakdown = inc.loc[:, keep], recent.loc[:, keep], breakdown.loc[:, keep]
+    recent_frac = (recent / (recent + breakdown)).fillna(0.0)
+    recent_inc = (inc * recent_frac).T.groupby(level="sample").sum().T
+    total_inc = inc.T.groupby(level="sample").sum().T
+    return recent_inc / total_inc * 100.0
+
+
 def get_age_notifs(results, age_strat, disease_state, clin_strat, infect_strat):
     """Case detections by modelled age group.
 
@@ -592,6 +653,8 @@ def rerun_model_for_outputs(
         "age_pop": get_age_pop,
         "treatment": get_age_rx_prev,
         "recovered": get_age_recovered,
+        "inflow_recent": get_age_inflow_recent,
+        "inflow_breakdown": get_age_inflow_breakdown,
     }
     sample_labels = []
     outputs = [{out: [] for out in indicator_funcs} for _ in scen_params]
@@ -637,21 +700,30 @@ def get_natural_history_summary(
     The effective adult rate of progression from contained infection is the
     breakdown rate multiplied by the probability that an incipient episode
     progresses rather than being contained (ignoring background mortality).
-    Incipient infection is memoryless, so the share of inflows to it from
-    breakdown is also the share of progression to disease that arises from
-    long-standing infection.
+    Incipient infection is memoryless, so within each age group the share
+    of inflows to it from each source is also the share of progression to
+    disease arising from that source. These shares are weighted by
+    age-specific incidence, as described for the recent infection share.
     """
     def annual(managed) -> np.ndarray:
         return np.asarray(managed.sum(to_dims="time").data)
 
+    def by_age(flow) -> np.ndarray:
+        return np.asarray(flows[flow].sumcats(source=age_strat.categories()).data)
+
     flows = results["flows"]
     comps = results["compartments"]
-    primary = annual(flows["infect_mtb_naive"]) + annual(flows["seed_peak"])
-    reinfection = sum(
-        annual(flows[f"infect_{c}"]) for c in INFECT_COMPS if c != "mtb_naive"
-    )
-    breakdown = annual(flows["breakdown"])
-    incipient_inflow = primary + reinfection + breakdown
+    primary = by_age("infect_mtb_naive") + by_age("seed_peak")
+    reinfection = sum(by_age(f"infect_{c}") for c in INFECT_COMPS if c != "mtb_naive")
+    breakdown = by_age("breakdown")
+    age_inc = by_age("progression")
+    inflow = primary + reinfection + breakdown
+
+    def inc_share(source) -> np.ndarray:
+        frac = np.divide(source, inflow, out=np.zeros_like(source), where=inflow > 0.0)
+        return 100.0 * (age_inc * frac).sum(axis=1) / age_inc.sum(axis=1)
+
+    primary_total = primary.sum(axis=1)
     total_pop = annual(comps)
     adult_ages = age_strat[[str(a) for a in AGE_STRATA if a >= YOUNG_END_AGE]]
     adult_pop = annual(comps.query(compartment=adult_ages))
@@ -662,10 +734,10 @@ def get_natural_history_summary(
 
     series = {
         "incidence per 100,000": 1e5 * annual(flows["progression"]) / total_pop,
-        "share of incidence from breakdown (%)": 100.0 * breakdown / incipient_inflow,
-        "share of incidence from primary infection (%)": 100.0 * primary / incipient_inflow,
-        "share of incidence from reinfection (%)": 100.0 * reinfection / incipient_inflow,
-        "annual risk of primary infection (%)": 100.0 * primary / naive,
+        "share of incidence from breakdown (%)": inc_share(breakdown),
+        "share of incidence from primary infection (%)": inc_share(primary),
+        "share of incidence from reinfection (%)": inc_share(reinfection),
+        "annual risk of primary infection (%)": 100.0 * primary_total / naive,
         "adults ever infected (%)": adult_pct(INFECTED_STATES),
         "adults incipient (%)": adult_pct("incipient"),
         "adults contained (%)": adult_pct("contained"),

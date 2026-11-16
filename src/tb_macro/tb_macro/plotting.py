@@ -364,6 +364,41 @@ def plot_scenario_credible_intervals(
     return fig
 
 
+def plot_recent_infection_share(
+    shares: Dict[str, pd.DataFrame],
+    plot_start: float,
+    end_time: float,
+    q_low: float = 0.025,
+    q_high: float = 0.975,
+) -> plt.figure:
+    """Plot the median and credible interval of the recent infection share.
+
+    Args:
+        shares: Outputs of ``get_recent_infection_share`` keyed by display label
+        plot_start: First year to plot
+        end_time: Last year to plot
+        q_low: Lower quantile of the credible interval
+        q_high: Upper quantile of the credible interval
+
+    Returns:
+        The figure
+    """
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for i, (label, share) in enumerate(shares.items()):
+        window = share.loc[plot_start:end_time]
+        median, low, high = _median_and_ci(window, q_low=q_low, q_high=q_high)
+        ax.fill_between(window.index, low, high, color=f"C{i}", alpha=0.25, linewidth=0.0)
+        median.plot(ax=ax, color=f"C{i}", label=label)
+    ax.set_xlim(plot_start, end_time)
+    ax.set_ylim(0.0, 100.0)
+    ax.set_ylabel("percentage of incident TB")
+    ax.set_title("incident TB attributable to recent infection")
+    ax.legend()
+    fig.tight_layout()
+    plt.close()
+    return fig
+
+
 def plot_outputs(
     prev: pd.DataFrame,
     inc: pd.DataFrame,
